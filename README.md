@@ -22,10 +22,9 @@ graph TD
     
     subgraph Agent [Agent]
         Orchestrator[Orchestrator]
-        Context[Context Window]
     end
-    
-    subgraph Brain [Model Layer]
+
+    subgraph Generator [Model Layer]
         LLM[LLM Interface]
     end
     
@@ -34,13 +33,12 @@ graph TD
         LongTerm[Vector Store]
     end
     
-    subgraph Actions [Tool Layer]
+    subgraph Provider [Tool Layer]
         Catalog[Tool Catalog]
         UTCP[UTCP Client]
     end
     
     UAgent --> Orchestrator
-    Orchestrator -->|1. Retrieve| State
-    Orchestrator -->|2. Plan| LLM
-    Orchestrator -->|3. Execute| Actions
-    Actions -->|4. Result| Orchestrator
+    Orchestrator -->|Retrieve| State
+    Orchestrator -->|Plan| Generator
+    Orchestrator -->|Execute| Provider
