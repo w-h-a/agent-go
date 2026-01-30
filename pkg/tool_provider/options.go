@@ -1,11 +1,22 @@
 package toolprovider
 
-import "context"
+import (
+	"context"
+
+	"github.com/w-h-a/agent/pkg/generator"
+)
 
 type Option func(*Options)
 
 type Options struct {
-	Context context.Context
+	Generator generator.Generator
+	Context   context.Context
+}
+
+func WithGenerator(gen generator.Generator) Option {
+	return func(opts *Options) {
+		opts.Generator = gen
+	}
 }
 
 func NewOptions(opts ...Option) Options {

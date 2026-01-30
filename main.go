@@ -15,8 +15,9 @@ import (
 	"github.com/w-h-a/agent/pkg/retriever/gomento"
 	"github.com/w-h-a/agent/pkg/retriever/postgres"
 	toolprovider "github.com/w-h-a/agent/pkg/tool_provider"
-	"github.com/w-h-a/agent/pkg/tool_provider/calculator"
+	"github.com/w-h-a/agent/pkg/tool_provider/calculate"
 	"github.com/w-h-a/agent/pkg/tool_provider/echo"
+	"github.com/w-h-a/agent/pkg/tool_provider/research"
 	"github.com/w-h-a/agent/pkg/tool_provider/time"
 )
 
@@ -31,20 +32,19 @@ func main() {
 	// 1. Initialize the Retriever
 	r := initRetriever("postgres")
 
-	// 2. Initialize a Generator (Model) for the Agent
-	_ = initPrimaryModel("openai")
-
-	// 3. Initialize a Generator (Model) for the Sub-Agent(s?)
-	_ = initSubModels("openai")
+	// 2. Initialize a Generators
+	_ = initGenerator("openai", "", "gpt-3.5-turbo", "Coordinator response:")
+	researcher := initGenerator("openai", "", "gpt-3.5-turbo", "Research summary:")
 
 	// 4. Initialize the Tool Providers (revisit)
-	_ = []toolprovider.ToolProvider{
-		echo.NewToolProvider(),
-		calculator.NewToolProvider(),
-		time.NewToolProvider(),
+	_ = map[string]toolprovider.ToolProvider{
+		"echo":      echo.NewToolProvider(),
+		"calculate": calculate.NewToolProvider(),
+		"time":      time.NewToolProvider(),
+		"research":  research.NewToolProvider(toolprovider.WithGenerator(researcher)),
 	}
 
-	// 5. Create Agent and Sub-Agents
+	// 5. Create Agent
 
 	// 6. Initialize The (Optional) Space
 	spaceID, err := r.CreateSpace(ctx, "agent-learning-space")
@@ -189,51 +189,20 @@ func initRetriever(choice string) retriever.Retriever {
 	}
 }
 
-func initPrimaryModel(choice string) generator.Generator {
-	switch choice {
-	case "openai":
-		return openai.NewGenerator(
-			generator.WithApiKey(""),
-			generator.WithModel("gpt-3.5-turbo"),
-			generator.WithPromptPrefix(""),
-		)
-	case "google":
-		return google.NewGenerator(
-			generator.WithApiKey(""),
-			generator.WithModel(""),
-			generator.WithPromptPrefix(""),
-		)
-	case "anthropic":
-		return anthropic.NewGenerator(
-			generator.WithApiKey(""),
-			generator.WithModel(""),
-			generator.WithPromptPrefix(""),
-		)
-	default:
-		panic("unknown model choice")
+func initGenerator(choice string, apiKey string, model string, promptPrefix string) generator.Generator {
+	opts := []generator.Option{
+		generator.WithApiKey(apiKey),
+		generator.WithModel(model),
+		generator.WithPromptPrefix(promptPrefix),
 	}
-}
 
-func initSubModels(choice string) []generator.Generator {
 	switch choice {
 	case "openai":
-		return []generator.Generator{openai.NewGenerator(
-			generator.WithApiKey(""),
-			generator.WithModel("gpt-3.5-turbo"),
-			generator.WithPromptPrefix(""),
-		)}
+		return openai.NewGenerator(opts...)
 	case "google":
-		return []generator.Generator{google.NewGenerator(
-			generator.WithApiKey(""),
-			generator.WithModel(""),
-			generator.WithPromptPrefix(""),
-		)}
+		return google.NewGenerator(opts...)
 	case "anthropic":
-		return []generator.Generator{anthropic.NewGenerator(
-			generator.WithApiKey(""),
-			generator.WithModel(""),
-			generator.WithPromptPrefix(""),
-		)}
+		return anthropic.NewGenerator(opts...)
 	default:
 		panic("unknown model choice")
 	}
