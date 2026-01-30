@@ -30,7 +30,7 @@ func (g *googleGenerator) Generate(ctx context.Context, prompt string) (string, 
 	}
 
 	if len(rsp.Candidates) == 0 || rsp.Candidates[0].Content == nil || len(rsp.Candidates[0].Content.Parts) == 0 {
-		return "nil", errors.New("no response from Google")
+		return "", errors.New("no response from Google")
 	}
 
 	var b strings.Builder

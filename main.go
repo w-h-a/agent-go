@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
+	gotime "time"
 
 	"github.com/w-h-a/agent/pkg/generator"
 	"github.com/w-h-a/agent/pkg/generator/anthropic"
@@ -14,6 +14,10 @@ import (
 	"github.com/w-h-a/agent/pkg/retriever"
 	"github.com/w-h-a/agent/pkg/retriever/gomento"
 	"github.com/w-h-a/agent/pkg/retriever/postgres"
+	toolprovider "github.com/w-h-a/agent/pkg/tool_provider"
+	"github.com/w-h-a/agent/pkg/tool_provider/calculator"
+	"github.com/w-h-a/agent/pkg/tool_provider/echo"
+	"github.com/w-h-a/agent/pkg/tool_provider/time"
 )
 
 const (
@@ -33,9 +37,14 @@ func main() {
 	// 3. Initialize a Generator (Model) for the Sub-Agent(s?)
 	_ = initSubModels("openai")
 
-	// 4. Initialize the Tool Provider
+	// 4. Initialize the Tool Providers (revisit)
+	_ = []toolprovider.ToolProvider{
+		echo.NewToolProvider(),
+		calculator.NewToolProvider(),
+		time.NewToolProvider(),
+	}
 
-	// 5. Create Agent and Sub-Agent
+	// 5. Create Agent and Sub-Agents
 
 	// 6. Initialize The (Optional) Space
 	spaceID, err := r.CreateSpace(ctx, "agent-learning-space")
@@ -80,7 +89,7 @@ func main() {
 		log.Printf("⚠️ failed to flush: %v", err)
 	}
 
-	time.Sleep(10 * time.Second)
+	gotime.Sleep(10 * gotime.Second)
 
 	// 10. Retrieve Context & Build Prompt
 	userQuery := "What index did you recommend for vector search?"
