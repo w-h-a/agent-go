@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/w-h-a/agent/pkg/retriever"
+	"github.com/w-h-a/agent/retriever"
 )
 
 type gomentoRetriever struct {

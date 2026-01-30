@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	toolprovider "github.com/w-h-a/agent/pkg/tool_provider"
+	toolprovider "github.com/w-h-a/agent/tool_provider"
 )
 
 type timeToolProvider struct {

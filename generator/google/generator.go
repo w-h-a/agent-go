@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
-	"github.com/w-h-a/agent/pkg/generator"
+	"github.com/w-h-a/agent/generator"
 	genaiopt "google.golang.org/api/option"
 )
 

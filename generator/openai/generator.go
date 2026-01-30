@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/sashabaranov/go-openai"
-	"github.com/w-h-a/agent/pkg/generator"
+	"github.com/w-h-a/agent/generator"
 )
 
 type openAIGenerator struct {

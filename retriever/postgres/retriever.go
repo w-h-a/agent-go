@@ -15,7 +15,7 @@ import (
 	"github.com/pgvector/pgvector-go"
 	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/openai"
-	"github.com/w-h-a/agent/pkg/retriever"
+	"github.com/w-h-a/agent/retriever"
 	"go.nhat.io/otelsql"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"

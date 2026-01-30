@@ -3,7 +3,7 @@ package toolprovider
 import (
 	"context"
 
-	"github.com/w-h-a/agent/pkg/generator"
+	"github.com/w-h-a/agent/generator"
 )
 
 type Option func(*Options)

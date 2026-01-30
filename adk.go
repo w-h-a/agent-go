@@ -3,18 +3,18 @@ package agent
 import (
 	"context"
 
-	"github.com/w-h-a/agent/pkg/generator"
-	"github.com/w-h-a/agent/pkg/generator/anthropic"
-	"github.com/w-h-a/agent/pkg/generator/google"
-	"github.com/w-h-a/agent/pkg/generator/openai"
-	"github.com/w-h-a/agent/pkg/retriever"
-	"github.com/w-h-a/agent/pkg/retriever/gomento"
-	"github.com/w-h-a/agent/pkg/retriever/postgres"
-	toolprovider "github.com/w-h-a/agent/pkg/tool_provider"
-	"github.com/w-h-a/agent/pkg/tool_provider/calculate"
-	"github.com/w-h-a/agent/pkg/tool_provider/echo"
-	"github.com/w-h-a/agent/pkg/tool_provider/research"
-	"github.com/w-h-a/agent/pkg/tool_provider/time"
+	"github.com/w-h-a/agent/generator"
+	"github.com/w-h-a/agent/generator/anthropic"
+	"github.com/w-h-a/agent/generator/google"
+	"github.com/w-h-a/agent/generator/openai"
+	"github.com/w-h-a/agent/retriever"
+	"github.com/w-h-a/agent/retriever/gomento"
+	"github.com/w-h-a/agent/retriever/postgres"
+	toolprovider "github.com/w-h-a/agent/tool_provider"
+	"github.com/w-h-a/agent/tool_provider/calculate"
+	"github.com/w-h-a/agent/tool_provider/echo"
+	"github.com/w-h-a/agent/tool_provider/research"
+	"github.com/w-h-a/agent/tool_provider/time"
 )
 
 func InitAgent(

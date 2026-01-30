@@ -7,7 +7,7 @@ import (
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	anthropicopt "github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/w-h-a/agent/pkg/generator"
+	"github.com/w-h-a/agent/generator"
 )
 
 type anthropicGenerator struct {

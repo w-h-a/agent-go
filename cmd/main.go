@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/w-h-a/agent"
-	"github.com/w-h-a/agent/pkg/retriever"
 )
 
 const (
@@ -40,7 +39,7 @@ func main() {
 	fmt.Printf("✅ Connected to Space: %s\n", spaceId)
 
 	// 3. Initialize The Session
-	sessionId, err := a.CreateSession(ctx, retriever.WithSpaceId(spaceId))
+	sessionId, err := a.CreateSession(ctx, spaceId)
 	if err != nil {
 		log.Fatalf("❌ failed to create session: %v", err)
 	}

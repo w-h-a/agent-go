@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/w-h-a/agent/pkg/generator"
-	"github.com/w-h-a/agent/pkg/retriever"
-	toolprovider "github.com/w-h-a/agent/pkg/tool_provider"
+	"github.com/w-h-a/agent/generator"
+	"github.com/w-h-a/agent/retriever"
+	toolprovider "github.com/w-h-a/agent/tool_provider"
 )
 
 const (
@@ -28,8 +28,8 @@ func (a *Agent) CreateSpace(ctx context.Context, name string) (string, error) {
 	return a.retriever.CreateSpace(ctx, name)
 }
 
-func (a *Agent) CreateSession(ctx context.Context, opts ...retriever.CreateSessionOption) (string, error) {
-	return a.retriever.CreateSession(ctx, opts...)
+func (a *Agent) CreateSession(ctx context.Context, spaceId string) (string, error) {
+	return a.retriever.CreateSession(ctx, retriever.WithSpaceId(spaceId))
 }
 
 func (a *Agent) Respond(ctx context.Context, spaceId string, sessionId string, userInput string) (string, error) {
