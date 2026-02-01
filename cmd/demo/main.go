@@ -77,12 +77,11 @@ func main() {
 
 	// Create ADK
 	adk := agent.New(
-		ctx,
 		re,
 		primaryModel,
-		map[string]toolprovider.ToolProvider{
-			"calculate": calculate,
-			"research":  research,
+		[]toolprovider.ToolProvider{
+			calculate,
+			research,
 		},
 		cfg.Context,
 		cfg.SystemPrompt,
@@ -117,7 +116,7 @@ func main() {
 
 	for _, prompt := range prompts {
 		start := time.Now()
-		reply, err := session.Ask(ctx, prompt)
+		reply, err := adk.Generate(ctx, "", sessionId, prompt)
 		duration := time.Since(start)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
