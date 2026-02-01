@@ -11,12 +11,19 @@ type timeToolProvider struct {
 	options toolprovider.Options
 }
 
-func (tp *timeToolProvider) Name() string { return "time" }
+func (tp *timeToolProvider) Spec() toolprovider.ToolSpec {
+	return toolprovider.ToolSpec{
+		Name:        "time",
+		Description: "Returns the current UTC time.",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	}
+}
 
-func (tp *timeToolProvider) Description() string { return "Returns the current UTC time." }
-
-func (tp *timeToolProvider) Run(_ context.Context, _ string) (string, error) {
-	return time.Now().UTC().Format(time.RFC3339), nil
+func (tp *timeToolProvider) Invoke(_ context.Context, _ toolprovider.ToolRequest) (toolprovider.ToolResponse, error) {
+	return toolprovider.ToolResponse{Content: time.Now().UTC().Format(time.RFC3339)}, nil
 }
 
 func NewToolProvider(opts ...toolprovider.Option) toolprovider.ToolProvider {

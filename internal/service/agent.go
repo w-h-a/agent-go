@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,6 +21,7 @@ type Agent struct {
 	retriever     retriever.Retriever
 	generator     generator.Generator
 	toolProviders map[string]toolprovider.ToolProvider
+	toolSpecs     map[string]toolprovider.ToolSpec
 	contextLimit  int
 	systemPrompt  string
 }
@@ -39,12 +41,19 @@ func (a *Agent) Respond(ctx context.Context, spaceId string, sessionId string, u
 
 	a.addShortTerm(ctx, sessionId, "user", userInput, nil)
 
-	if handled, output, err := a.handleCommand(ctx, sessionId, userInput); handled {
+	if handled, output, metadata, err := a.handleCommand(ctx, sessionId, userInput); handled {
+		extra := map[string]any{"source": "tool"}
 		if err != nil {
-			a.addShortTerm(ctx, sessionId, "assistant", fmt.Sprintf("tool error: %v", err), map[string]any{"source": "tool"})
+			a.addShortTerm(ctx, sessionId, "assistant", fmt.Sprintf("tool error: %v", err), extra)
 			return "", err
 		}
-		a.addShortTerm(ctx, sessionId, "assistant", output, map[string]any{"source": "tool"})
+		for k, v := range metadata {
+			if len(strings.TrimSpace(k)) == 0 {
+				continue
+			}
+			extra[k] = v
+		}
+		a.addShortTerm(ctx, sessionId, "assistant", output, extra)
 		return output, nil
 	}
 
@@ -77,38 +86,52 @@ func (a *Agent) addShortTerm(ctx context.Context, sessionId string, role string,
 	a.retriever.AddShortTerm(ctx, sessionId, role, parts)
 }
 
-func (a *Agent) handleCommand(ctx context.Context, sessionId string, input string) (bool, string, error) {
+func (a *Agent) handleCommand(ctx context.Context, sessionId string, input string) (bool, string, map[string]any, error) {
 	trimmed := strings.TrimSpace(input)
 	lower := strings.ToLower(trimmed)
 
 	if !strings.HasPrefix(lower, "tool:") {
-		return false, "", nil
+		return false, "", nil, nil
 	}
 
 	payload := strings.TrimSpace(trimmed[len("tool:"):])
 	if len(payload) == 0 {
-		return true, "", errors.New("tool name is missing")
+		return true, "", nil, errors.New("tool name is missing")
 	}
 
 	name, args := splitCommand(payload)
 
 	if len(a.toolProviders) == 0 {
-		return true, "", errors.New("no tools available")
+		return true, "", nil, errors.New("no tools available")
 	}
 
-	tp, ok := a.toolProviders[name]
+	tp, ok := a.toolProviders[strings.ToLower(name)]
 	if !ok {
-		return true, "", fmt.Errorf("unknown tool: %s", name)
+		return true, "", nil, fmt.Errorf("unknown tool: %s", name)
 	}
 
-	result, err := tp.Run(ctx, args)
+	parsed := parseToolArguments(args)
+
+	result, err := tp.Invoke(ctx, toolprovider.ToolRequest{
+		SessionId: sessionId,
+		Arguments: parsed,
+	})
 	if err != nil {
-		return true, "", err
+		return true, "", nil, err
 	}
 
-	a.addShortTerm(ctx, sessionId, "tool", fmt.Sprintf("%s => %s", tp.Name(), strings.TrimSpace(result)), map[string]any{"tool": tp.Name()})
+	spec := a.toolSpecs[strings.ToLower(name)]
+	metadata := map[string]any{"tool": spec.Name}
+	for k, v := range result.Metadata {
+		if len(strings.TrimSpace(k)) == 0 {
+			continue
+		}
+		metadata[k] = v
+	}
 
-	return true, result, nil
+	a.addShortTerm(ctx, sessionId, "tool", fmt.Sprintf("%s => %s", spec.Name, strings.TrimSpace(result.Content)), metadata)
+
+	return true, result.Content, metadata, nil
 }
 
 func (a *Agent) buildPrompt(ctx context.Context, spaceId string, sessionId string, input string) (string, error) {
@@ -157,10 +180,25 @@ func (a *Agent) buildPrompt(ctx context.Context, spaceId string, sessionId strin
 
 	if len(a.toolProviders) > 0 {
 		sb.WriteString("\n\nAvailable tools:\n")
-		for _, tool := range a.toolProviders {
-			sb.WriteString(fmt.Sprintf("- %s: %s\n", tool.Name(), tool.Description()))
+		for k := range a.toolProviders {
+			spec := a.toolSpecs[k]
+			sb.WriteString(fmt.Sprintf("- %s: %s\n", spec.Name, spec.Description))
+			if len(spec.InputSchema) > 0 {
+				schemaJSON, _ := json.MarshalIndent(spec.InputSchema, "  ", "  ")
+				sb.WriteString("  Input schema: ")
+				sb.Write(schemaJSON)
+				sb.WriteString("\n")
+			}
+			if len(spec.Examples) > 0 {
+				sb.WriteString("  Examples:\n")
+				for _, ex := range spec.Examples {
+					exJSON, _ := json.MarshalIndent(ex, "    ", "  ")
+					sb.Write(exJSON)
+					sb.WriteString("\n")
+				}
+			}
 		}
-		sb.WriteString("Invoke a tool by replying with the exact format `tool:<name> <input>` when it improves the answer.\n")
+		sb.WriteString("Invoke a tool by replying with the format `tool:<name> <json arguments>` when it improves the answer.\n")
 	}
 
 	if len(skills) > 0 {
@@ -218,6 +256,18 @@ func NewAgent(
 		panic("generator is required")
 	}
 
+	tps := make(map[string]toolprovider.ToolProvider, len(toolProviders))
+	tss := make(map[string]toolprovider.ToolSpec, len(toolProviders))
+	for _, tp := range toolProviders {
+		spec := tp.Spec()
+		key := strings.ToLower(strings.TrimSpace(spec.Name))
+		if len(key) == 0 {
+			continue
+		}
+		tps[key] = tp
+		tss[key] = spec
+	}
+
 	if contextLimit <= 0 {
 		contextLimit = 8
 	}
@@ -229,7 +279,8 @@ func NewAgent(
 	return &Agent{
 		retriever:     retriever,
 		generator:     generator,
-		toolProviders: toolProviders,
+		toolProviders: tps,
+		toolSpecs:     tss,
 		contextLimit:  contextLimit,
 		systemPrompt:  systemPrompt,
 	}

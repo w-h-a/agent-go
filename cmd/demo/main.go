@@ -111,8 +111,8 @@ func main() {
 	prompts := []string{
 		"Summarize what I asked in our previous session.",
 		"I want to design an AI agent with memory. What’s the first step?",
-		"tool:calculate 21 / 3",
-		"subagent:researcher Briefly explain pgvector and its benefits for retrieval.",
+		`tool:calculate {"expression":"21 / 3"}`,
+		`tool:research {"query":"Briefly explain pgvector and its benefits for retrieval."}`,
 	}
 
 	for _, prompt := range prompts {

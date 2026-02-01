@@ -14,26 +14,49 @@ type calculateToolProvider struct {
 	options toolprovider.Options
 }
 
-func (tp *calculateToolProvider) Name() string { return "calculate" }
-
-func (tp *calculateToolProvider) Description() string {
-	return "Evaluates simple math expressions such as '2 + 2' or '5 * 3'."
+func (tp *calculateToolProvider) Spec() toolprovider.ToolSpec {
+	return toolprovider.ToolSpec{
+		Name:        "calculate",
+		Description: "Evaluates simple math expressions such as '2 + 2' or '5 * 3'.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"expression": map[string]any{
+					"type":        "string",
+					"description": "Expression in the form '<number> <operator> <number>'.",
+				},
+			},
+			"required": []any{"expression"},
+		},
+	}
 }
 
-func (tp *calculateToolProvider) Run(_ context.Context, input string) (string, error) {
-	fields := strings.Fields(input)
+func (tp *calculateToolProvider) Invoke(_ context.Context, req toolprovider.ToolRequest) (toolprovider.ToolResponse, error) {
+	raw, ok := req.Arguments["expression"]
+	if !ok {
+		return toolprovider.ToolResponse{}, fmt.Errorf("missing 'expression' argument")
+	}
+	if raw == nil {
+		return toolprovider.ToolResponse{Content: ""}, nil
+	}
+
+	expression, ok := raw.(string)
+	if !ok {
+		return toolprovider.ToolResponse{}, fmt.Errorf("argument 'expression' has invalid type: expected string, got %T", raw)
+	}
+
+	fields := strings.Fields(strings.TrimSpace(expression))
 	if len(fields) != 3 {
-		return "", fmt.Errorf("expected format '<number> <op> <number>'")
+		return toolprovider.ToolResponse{}, fmt.Errorf("expected format '<number> <op> <number>'")
 	}
 
 	left, err := strconv.ParseFloat(fields[0], 64)
 	if err != nil {
-		return "", fmt.Errorf("invalid left operand: %w", err)
+		return toolprovider.ToolResponse{}, fmt.Errorf("invalid left operand: %w", err)
 	}
-
 	right, err := strconv.ParseFloat(fields[2], 64)
 	if err != nil {
-		return "", fmt.Errorf("invalid right operand: %w", err)
+		return toolprovider.ToolResponse{}, fmt.Errorf("invalid right operand: %w", err)
 	}
 
 	var result float64
@@ -46,14 +69,14 @@ func (tp *calculateToolProvider) Run(_ context.Context, input string) (string, e
 		result = left * right
 	case "/":
 		if math.Abs(right) < 1e-12 {
-			return "", fmt.Errorf("division by zero")
+			return toolprovider.ToolResponse{}, fmt.Errorf("division by zero")
 		}
 		result = left / right
 	default:
-		return "", fmt.Errorf("unsupported operator %q", fields[1])
+		return toolprovider.ToolResponse{}, fmt.Errorf("unsupported operator %q", fields[1])
 	}
 
-	return strconv.FormatFloat(result, 'f', -1, 64), nil
+	return toolprovider.ToolResponse{Content: strconv.FormatFloat(result, 'f', -1, 64)}, nil
 }
 
 func NewToolProvider(opts ...toolprovider.Option) toolprovider.ToolProvider {
