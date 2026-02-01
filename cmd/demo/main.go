@@ -44,25 +44,6 @@ func main() {
 	_ = kong.Parse(&cfg)
 	ctx := context.Background()
 
-	// Create custom tooling
-	calculate := calculate.NewToolProvider()
-
-	researchModel := openai.NewGenerator(
-		generator.WithApiKey(cfg.APIKey),
-		generator.WithModel(cfg.Model),
-		generator.WithPromptPrefix("Researcher response:"),
-	)
-	research := research.NewToolProvider(
-		toolprovider.WithGenerator(researchModel),
-	)
-
-	// Create primary agent's model
-	primaryModel := openai.NewGenerator(
-		generator.WithApiKey(cfg.APIKey),
-		generator.WithModel(cfg.Model),
-		generator.WithPromptPrefix("Coordinator response:"),
-	)
-
 	// Create retriever
 	re := gomento.NewRetriever(
 		retriever.WithLocation(cfg.RetrieverLocation),
@@ -74,6 +55,25 @@ func main() {
 	// 	retriever.WithModel(cfg.Embedder),
 	// 	retriever.WithShortTermMemorySize(cfg.Window),
 	// )
+
+	// Create primary agent's model
+	primaryModel := openai.NewGenerator(
+		generator.WithApiKey(cfg.APIKey),
+		generator.WithModel(cfg.Model),
+		generator.WithPromptPrefix("Coordinator response:"),
+	)
+
+	// Create custom tooling
+	calculate := calculate.NewToolProvider()
+
+	researchModel := openai.NewGenerator(
+		generator.WithApiKey(cfg.APIKey),
+		generator.WithModel(cfg.Model),
+		generator.WithPromptPrefix("Researcher response:"),
+	)
+	research := research.NewToolProvider(
+		toolprovider.WithGenerator(researchModel),
+	)
 
 	// Create ADK
 	adk := agent.New(
@@ -103,15 +103,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("❌ failed to start session: %v", err)
 	}
+	defer session.Flush(ctx)
 	sessionId := session.ID()
 	fmt.Printf("✅ Started Session: %s\n", sessionId)
 
 	// 2. Simulate Conversation
 	prompts := []string{
-		"I want to design an AI agent with both short term and long term memory. How should I start?",
+		"Summarize what I asked in our previous session.",
+		"I want to design an AI agent with memory. What’s the first step?",
 		"tool:calculate 21 / 3",
-		"tool:research Provide a concise brief on pgvector usage for AI memory.",
-		"How can I wire everything together after gathering research?",
+		"subagent:researcher Briefly explain pgvector and its benefits for retrieval.",
 	}
 
 	for _, prompt := range prompts {
@@ -126,11 +127,5 @@ func main() {
 	}
 	fmt.Println("✅ Populated conversation history.")
 
-	// 5. Consolidate Memory
-	fmt.Println("⏳ Flushing to Long-Term...")
-	if err := session.Flush(ctx); err != nil {
-		log.Printf("⚠️ failed to flush: %v", err)
-	} else {
-		log.Printf("flushed short-term memory for %s to long-term storage", sessionId)
-	}
+	fmt.Println("💾 All interactions flushed to long-term memory.")
 }
