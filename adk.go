@@ -7,7 +7,7 @@ import (
 	"github.com/w-h-a/agent/internal/service/agent"
 	"github.com/w-h-a/agent/internal/service/session"
 	"github.com/w-h-a/agent/retriever"
-	toolprovider "github.com/w-h-a/agent/tool_provider"
+	toolhandler "github.com/w-h-a/agent/tool_handler"
 )
 
 type ADK struct {
@@ -45,14 +45,14 @@ func (a *ADK) Close() error {
 func New(
 	retriever retriever.Retriever,
 	generator generator.Generator,
-	toolProviders []toolprovider.ToolProvider,
+	toolHandlers []toolhandler.ToolHandler,
 	context int,
 	systemPrompt string,
 ) *ADK {
 	agent := agent.New(
 		retriever,
 		generator,
-		toolProviders,
+		toolHandlers,
 		context,
 		systemPrompt,
 	)

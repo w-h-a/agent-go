@@ -1,4 +1,4 @@
-package toolprovider
+package toolhandler
 
 type ToolRequest struct {
 	SessionId string         `json:"session_id"`

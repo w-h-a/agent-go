@@ -1,4 +1,4 @@
-package toolprovider
+package toolhandler
 
 type ToolResponse struct {
 	Content  string            `json:"content"`

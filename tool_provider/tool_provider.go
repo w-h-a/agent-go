@@ -1,8 +1,11 @@
 package toolprovider
 
-import "context"
+import (
+	"context"
+
+	toolhandler "github.com/w-h-a/agent/tool_handler"
+)
 
 type ToolProvider interface {
-	Spec() ToolSpec
-	Invoke(ctx context.Context, req ToolRequest) (ToolResponse, error)
+	Load(ctx context.Context, query string, limit int) ([]toolhandler.ToolHandler, error)
 }

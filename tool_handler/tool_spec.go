@@ -1,4 +1,4 @@
-package toolprovider
+package toolhandler
 
 type ToolSpec struct {
 	Name        string           `json:"name"`

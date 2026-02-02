@@ -5,25 +5,25 @@ import (
 	"strings"
 	"sync"
 
-	toolprovider "github.com/w-h-a/agent/tool_provider"
+	toolhandler "github.com/w-h-a/agent/tool_handler"
 )
 
 type Catalog struct {
-	tools map[string]toolprovider.ToolProvider
-	specs map[string]toolprovider.ToolSpec
+	tools map[string]toolhandler.ToolHandler
+	specs map[string]toolhandler.ToolSpec
 	order []string
 	mtx   sync.RWMutex
 }
 
-func (c *Catalog) Register(tp toolprovider.ToolProvider) error {
-	if tp == nil {
+func (c *Catalog) Register(th toolhandler.ToolHandler) error {
+	if th == nil {
 		return fmt.Errorf("tool is nil")
 	}
 
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	spec := tp.Spec()
+	spec := th.Spec()
 	key := strings.ToLower(strings.TrimSpace(spec.Name))
 	if len(key) == 0 {
 		return fmt.Errorf("tool name is required")
@@ -33,18 +33,18 @@ func (c *Catalog) Register(tp toolprovider.ToolProvider) error {
 		return fmt.Errorf("tool %s already registered", key)
 	}
 
-	c.tools[key] = tp
+	c.tools[key] = th
 	c.specs[key] = spec
 	c.order = append(c.order, key)
 
 	return nil
 }
 
-func (c *Catalog) ListSpecs() []toolprovider.ToolSpec {
+func (c *Catalog) ListSpecs() []toolhandler.ToolSpec {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	specs := make([]toolprovider.ToolSpec, 0, len(c.specs))
+	specs := make([]toolhandler.ToolSpec, 0, len(c.specs))
 	for _, key := range c.order {
 		specs = append(specs, c.specs[key])
 	}
@@ -52,7 +52,7 @@ func (c *Catalog) ListSpecs() []toolprovider.ToolSpec {
 	return specs
 }
 
-func (c *Catalog) Get(name string) (toolprovider.ToolProvider, toolprovider.ToolSpec, bool) {
+func (c *Catalog) Get(name string) (toolhandler.ToolHandler, toolhandler.ToolSpec, bool) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 

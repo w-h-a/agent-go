@@ -11,7 +11,7 @@ import (
 
 	"github.com/w-h-a/agent/generator"
 	"github.com/w-h-a/agent/retriever"
-	toolprovider "github.com/w-h-a/agent/tool_provider"
+	toolhandler "github.com/w-h-a/agent/tool_handler"
 )
 
 const (
@@ -214,7 +214,7 @@ func (s *Service) handleCommand(ctx context.Context, sessionId string, input str
 
 	parsed := parseToolArguments(args)
 
-	result, err := tp.Invoke(ctx, toolprovider.ToolRequest{
+	result, err := tp.Invoke(ctx, toolhandler.ToolRequest{
 		SessionId: sessionId,
 		Arguments: parsed,
 	})
@@ -238,22 +238,22 @@ func (s *Service) handleCommand(ctx context.Context, sessionId string, input str
 func New(
 	retriever retriever.Retriever,
 	generator generator.Generator,
-	toolProviders []toolprovider.ToolProvider,
+	toolHandlers []toolhandler.ToolHandler,
 	contextLimit int,
 	systemPrompt string,
 ) *Service {
 	catalog := &Catalog{
-		tools: map[string]toolprovider.ToolProvider{},
-		specs: map[string]toolprovider.ToolSpec{},
+		tools: map[string]toolhandler.ToolHandler{},
+		specs: map[string]toolhandler.ToolSpec{},
 		order: []string{},
 		mtx:   sync.RWMutex{},
 	}
 
-	for _, tp := range toolProviders {
-		if tp == nil {
+	for _, th := range toolHandlers {
+		if th == nil {
 			continue
 		}
-		if err := catalog.Register(tp); err != nil {
+		if err := catalog.Register(th); err != nil {
 			continue
 		}
 	}
