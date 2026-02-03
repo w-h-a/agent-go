@@ -1,14 +1,17 @@
 package retriever
 
-import "context"
+import (
+	"context"
+
+	"github.com/w-h-a/agent/embedder"
+)
 
 type Option func(*Options)
 
 type Options struct {
 	Location            string
 	ShortTermMemorySize int
-	ApiKey              string
-	Model               string
+	Embedder            embedder.Embedder
 	Context             context.Context
 }
 
@@ -24,15 +27,9 @@ func WithShortTermMemorySize(size int) Option {
 	}
 }
 
-func WithApiKey(key string) Option {
+func WithEmbedder(emb embedder.Embedder) Option {
 	return func(o *Options) {
-		o.ApiKey = key
-	}
-}
-
-func WithModel(model string) Option {
-	return func(o *Options) {
-		o.Model = model
+		o.Embedder = emb
 	}
 }
 

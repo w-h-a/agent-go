@@ -6,18 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 
 	_ "github.com/lib/pq"
 	"github.com/pgvector/pgvector-go"
-	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/w-h-a/agent/retriever"
 	"go.nhat.io/otelsql"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 )
 
@@ -41,9 +37,8 @@ func init() {
 }
 
 type postgresRetriever struct {
-	options retriever.Options
-	conn    *sql.DB
-	embeddings.Embedder
+	options        retriever.Options
+	conn           *sql.DB
 	shortTerm      map[string][]retriever.Message
 	mtx            sync.RWMutex
 	sessionCounter atomic.Uint64
@@ -75,7 +70,7 @@ func (r *postgresRetriever) AddShortTerm(ctx context.Context, sessionId string, 
 		return nil
 	}
 
-	vec, err := r.EmbedQuery(ctx, text)
+	vec, err := r.options.Embedder.Embed(ctx, text)
 	if err != nil {
 		return err
 	}
@@ -126,7 +121,7 @@ func (r *postgresRetriever) ListShortTerm(ctx context.Context, sessionId string,
 func (r *postgresRetriever) SearchLongTerm(ctx context.Context, query string, opts ...retriever.SearchLongTermOption) ([]retriever.Message, []retriever.Skill, error) {
 	options := retriever.NewSearchOptions(opts...)
 
-	vec, err := r.EmbedQuery(ctx, query)
+	vec, err := r.options.Embedder.Embed(ctx, query)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -228,30 +223,6 @@ func NewRetriever(opts ...retriever.Option) retriever.Retriever {
 	}
 
 	r.conn = conn
-
-	llmOpts := []openai.Option{
-		openai.WithToken(options.ApiKey),
-		openai.WithModel(options.Model),
-		openai.WithHTTPClient(&http.Client{
-			Transport: otelhttp.NewTransport(http.DefaultTransport),
-		}),
-	}
-
-	llm, err := openai.New(llmOpts...)
-	if err != nil {
-		detail := "failed to initialize model for openai embedder"
-		slog.ErrorContext(context.Background(), detail, "error", err)
-		panic(detail)
-	}
-
-	emb, err := embeddings.NewEmbedder(llm)
-	if err != nil {
-		detail := "failed to initialize embedder for openai embedder"
-		slog.ErrorContext(context.Background(), detail, "error", err)
-		panic(detail)
-	}
-
-	r.Embedder = emb
 
 	return r
 }

@@ -18,7 +18,7 @@ import (
 	"github.com/w-h-a/agent/cmd/demo/tool/calculate"
 	"github.com/w-h-a/agent/cmd/demo/tool/research"
 	"github.com/w-h-a/agent/generator"
-	"github.com/w-h-a/agent/generator/openai"
+	openaigenerator "github.com/w-h-a/agent/generator/openai"
 	"github.com/w-h-a/agent/retriever"
 	"github.com/w-h-a/agent/retriever/gomento"
 	"github.com/w-h-a/agent/server"
@@ -33,12 +33,13 @@ var (
 		// Retriever config
 		RetrieverLocation string `help:"Address of memory store for retriever client" default:"http://localhost:4000"`
 		// RetrieverLocation string `help:"Address of memory store for retriever client" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
-		Window   int    `help:"Short-term memory window size per session" default:"8"`
-		Embedder string `help:"Model identifier for vector embeddings" default:"text-embedding-3-small"`
+		Window      int    `help:"Short-term memory window size per session" default:"8"`
+		EmbedderKey string `help:"API Key for the embedder" default:""`
+		Embedder    string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
 
 		// Generator config
-		APIKey string `help:"API Key for the model" default:""`
-		Model  string `help:"Model identifier for primary" default:"gpt-3.5-turbo"`
+		GeneratorKey string `help:"API Key for the generator" default:""`
+		Generator    string `help:"Model identifier for generator" default:"gpt-3.5-turbo"`
 
 		// Tool Provider config
 		ToolProviderClientAddrs []string `help:"List of addresses of servers with exposed tool handlers" default:"http://localhost:8080/tools"`
@@ -81,15 +82,17 @@ func main() {
 
 	// re := postgres.NewRetriever(
 	// 	retriever.WithLocation(cfg.RetrieverLocation),
-	// 	retriever.WithApiKey(cfg.APIKey),
-	// 	retriever.WithModel(cfg.Embedder),
 	// 	retriever.WithShortTermMemorySize(cfg.Window),
+	// 	retriever.WithEmbedder(openaiembedder.NewEmbedder(
+	// 		embedder.WithApiKey(cfg.EmbedderKey),
+	// 		embedder.WithModel(cfg.Embedder),
+	// 	)),
 	// )
 
 	// Create primary agent's model
-	primaryModel := openai.NewGenerator(
-		generator.WithApiKey(cfg.APIKey),
-		generator.WithModel(cfg.Model),
+	primaryModel := openaigenerator.NewGenerator(
+		generator.WithApiKey(cfg.GeneratorKey),
+		generator.WithModel(cfg.Generator),
 		generator.WithPromptPrefix("Coordinator response:"),
 	)
 
@@ -108,9 +111,9 @@ func main() {
 	// Create custom tooling
 	calculate := calculate.NewToolHandler()
 
-	researchModel := openai.NewGenerator(
-		generator.WithApiKey(cfg.APIKey),
-		generator.WithModel(cfg.Model),
+	researchModel := openaigenerator.NewGenerator(
+		generator.WithApiKey(cfg.GeneratorKey),
+		generator.WithModel(cfg.Generator),
 		generator.WithPromptPrefix("Researcher response:"),
 	)
 	research := research.NewToolHandler(
