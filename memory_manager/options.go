@@ -1,35 +1,19 @@
-package retriever
+package memorymanager
 
 import (
 	"context"
-
-	"github.com/w-h-a/agent/embedder"
 )
 
 type Option func(*Options)
 
 type Options struct {
-	Location            string
-	ShortTermMemorySize int
-	Embedder            embedder.Embedder
-	Context             context.Context
+	Location string
+	Context  context.Context
 }
 
 func WithLocation(loc string) Option {
 	return func(o *Options) {
 		o.Location = loc
-	}
-}
-
-func WithShortTermMemorySize(size int) Option {
-	return func(o *Options) {
-		o.ShortTermMemorySize = size
-	}
-}
-
-func WithEmbedder(emb embedder.Embedder) Option {
-	return func(o *Options) {
-		o.Embedder = emb
 	}
 }
 

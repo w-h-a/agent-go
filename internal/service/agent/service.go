@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/w-h-a/agent/generator"
-	"github.com/w-h-a/agent/retriever"
+	memorymanager "github.com/w-h-a/agent/memory_manager"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
 )
 
@@ -19,7 +19,7 @@ const (
 )
 
 type Service struct {
-	retriever    retriever.Retriever
+	memory       memorymanager.MemoryManager
 	generator    generator.Generator
 	catalog      *Catalog
 	contextLimit int
@@ -27,11 +27,11 @@ type Service struct {
 }
 
 func (s *Service) CreateSpace(ctx context.Context, name string) (string, error) {
-	return s.retriever.CreateSpace(ctx, name)
+	return s.memory.CreateSpace(ctx, name)
 }
 
 func (s *Service) CreateSession(ctx context.Context, spaceId string) (string, error) {
-	return s.retriever.CreateSession(ctx, retriever.WithSpaceId(spaceId))
+	return s.memory.CreateSession(ctx, memorymanager.WithSpaceId(spaceId))
 }
 
 func (s *Service) Respond(ctx context.Context, spaceId string, sessionId string, userInput string) (string, error) {
@@ -73,40 +73,40 @@ func (s *Service) Respond(ctx context.Context, spaceId string, sessionId string,
 }
 
 func (s *Service) Flush(ctx context.Context, sessionId string) error {
-	return s.retriever.FlushToLongTerm(ctx, sessionId)
+	return s.memory.FlushToLongTerm(ctx, sessionId)
 }
 
 func (s *Service) addShortTerm(ctx context.Context, sessionId string, role string, input string, meta map[string]any) {
-	parts := []retriever.Part{
+	parts := []memorymanager.Part{
 		{Type: "text", Text: input, Meta: meta},
 	}
 
 	// TODO: files
 
-	s.retriever.AddShortTerm(ctx, sessionId, role, parts)
+	s.memory.AddShortTerm(ctx, sessionId, role, parts)
 }
 
 func (s *Service) buildPrompt(ctx context.Context, spaceId string, sessionId string, input string) (string, error) {
 	// 1. Fetch Short-Term (Messages + Tasks)
-	shortTermMsgs, tasks, err := s.retriever.ListShortTerm(
+	shortTermMsgs, tasks, err := s.memory.ListShortTerm(
 		ctx,
 		sessionId,
-		retriever.WithShortTermLimit(s.contextLimit),
+		memorymanager.WithShortTermLimit(s.contextLimit),
 	)
 	if err != nil {
 		return "", fmt.Errorf("short-term error: %w", err)
 	}
 
 	// 2. Fetch Long-Term (Messages + Skills)
-	var longTermMsgs []retriever.Message
-	var skills []retriever.Skill
+	var longTermMsgs []memorymanager.Message
+	var skills []memorymanager.Skill
 	if len(spaceId) > 0 {
 		var err error
-		longTermMsgs, skills, err = s.retriever.SearchLongTerm(
+		longTermMsgs, skills, err = s.memory.SearchLongTerm(
 			ctx,
 			input,
-			retriever.WithSearchLongTermSpaceId(spaceId),
-			retriever.WithSearchLongTermLimit(s.contextLimit),
+			memorymanager.WithSearchLongTermSpaceId(spaceId),
+			memorymanager.WithSearchLongTermLimit(s.contextLimit),
 		)
 		if err != nil {
 			return "", fmt.Errorf("long-term error: %w", err)
@@ -119,7 +119,7 @@ func (s *Service) buildPrompt(ctx context.Context, spaceId string, sessionId str
 		isRelevant[msg.Id] = true
 	}
 
-	var uniqueShortTerm []retriever.Message
+	var uniqueShortTerm []memorymanager.Message
 	for _, msg := range shortTermMsgs {
 		if !isRelevant[msg.Id] {
 			uniqueShortTerm = append(uniqueShortTerm, msg)
@@ -236,7 +236,7 @@ func (s *Service) handleCommand(ctx context.Context, sessionId string, input str
 }
 
 func New(
-	retriever retriever.Retriever,
+	memory memorymanager.MemoryManager,
 	generator generator.Generator,
 	toolHandlers []toolhandler.ToolHandler,
 	contextLimit int,
@@ -267,7 +267,7 @@ func New(
 	}
 
 	return &Service{
-		retriever:    retriever,
+		memory:       memory,
 		generator:    generator,
 		catalog:      catalog,
 		contextLimit: contextLimit,

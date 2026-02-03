@@ -39,6 +39,6 @@ graph TD
     end
     
     UAgent --> Orchestrator
-    Orchestrator -->|Retrieve| State
+    Orchestrator -->|Store| State
     Orchestrator -->|Plan| Generator
     Orchestrator -->|Execute| Provider

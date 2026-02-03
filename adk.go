@@ -6,7 +6,7 @@ import (
 	"github.com/w-h-a/agent/generator"
 	"github.com/w-h-a/agent/internal/service/agent"
 	"github.com/w-h-a/agent/internal/service/session"
-	"github.com/w-h-a/agent/retriever"
+	memorymanager "github.com/w-h-a/agent/memory_manager"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
 )
 
@@ -17,20 +17,29 @@ type ADK struct {
 
 // TODO: Space
 
-func (a *ADK) NewSession(ctx context.Context, sessionId string) (*session.Session, error) {
-	return a.session.CreateSession(ctx, sessionId)
+func (a *ADK) NewSession(ctx context.Context, sessionId string) (string, func(context.Context) error, error) {
+	session, err := a.session.CreateSession(ctx, sessionId)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return session.ID(), session.Flush, nil
 }
 
-func (a *ADK) ListSessionIds() []string {
-	return a.session.ListSessionIds()
+func (a *ADK) ListSessionIds(ctx context.Context) []string {
+	return a.session.ListSessionIds(ctx)
 }
 
-func (a *ADK) GetSession(id string) (*session.Session, error) {
-	return a.session.GetSession(id)
+func (a *ADK) DeleteSession(ctx context.Context, id string) {
+	a.session.DeleteSession(ctx, id)
 }
 
-func (a *ADK) DeleteSession(id string) {
-	a.session.DeleteSession(id)
+func (a *ADK) FlushSession(ctx context.Context, id string) error {
+	session, err := a.session.GetSession(ctx, id)
+	if err != nil {
+		return err
+	}
+	return session.Flush(ctx)
 }
 
 func (a *ADK) Generate(ctx context.Context, spaceId string, sessionId string, userInput string) (string, error) {
@@ -43,14 +52,14 @@ func (a *ADK) Close() error {
 }
 
 func New(
-	retriever retriever.Retriever,
+	memory memorymanager.MemoryManager,
 	generator generator.Generator,
 	toolHandlers []toolhandler.ToolHandler,
 	context int,
 	systemPrompt string,
 ) *ADK {
 	agent := agent.New(
-		retriever,
+		memory,
 		generator,
 		toolHandlers,
 		context,
@@ -58,7 +67,7 @@ func New(
 	)
 
 	session := session.New(
-		retriever,
+		memory,
 	)
 
 	adk := &ADK{

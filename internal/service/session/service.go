@@ -7,19 +7,19 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/w-h-a/agent/retriever"
+	memorymanager "github.com/w-h-a/agent/memory_manager"
 )
 
 type Service struct {
-	retriever retriever.Retriever
-	sessions  map[string]*Session
-	mtx       sync.RWMutex
+	memory   memorymanager.MemoryManager
+	sessions map[string]*Session
+	mtx      sync.RWMutex
 }
 
 func (s *Service) CreateSession(ctx context.Context, id string) (*Session, error) {
 	if len(strings.TrimSpace(id)) == 0 {
 		var err error
-		id, err = s.retriever.CreateSession(ctx)
+		id, err = s.memory.CreateSession(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -33,8 +33,8 @@ func (s *Service) CreateSession(ctx context.Context, id string) (*Session, error
 	}
 
 	session := &Session{
-		retriever: s.retriever,
-		id:        id,
+		memory: s.memory,
+		id:     id,
 	}
 
 	s.sessions[id] = session
@@ -42,7 +42,7 @@ func (s *Service) CreateSession(ctx context.Context, id string) (*Session, error
 	return session, nil
 }
 
-func (s *Service) ListSessionIds() []string {
+func (s *Service) ListSessionIds(ctx context.Context) []string {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 	ids := make([]string, 0, len(s.sessions))
@@ -53,7 +53,7 @@ func (s *Service) ListSessionIds() []string {
 	return ids
 }
 
-func (s *Service) GetSession(id string) (*Session, error) {
+func (s *Service) GetSession(ctx context.Context, id string) (*Session, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 	session, ok := s.sessions[id]
@@ -63,18 +63,18 @@ func (s *Service) GetSession(id string) (*Session, error) {
 	return session, nil
 }
 
-func (s *Service) DeleteSession(id string) {
+func (s *Service) DeleteSession(ctx context.Context, id string) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	delete(s.sessions, id)
 }
 
 func New(
-	retriever retriever.Retriever,
+	memory memorymanager.MemoryManager,
 ) *Service {
 	return &Service{
-		retriever: retriever,
-		sessions:  map[string]*Session{},
-		mtx:       sync.RWMutex{},
+		memory:   memory,
+		sessions: map[string]*Session{},
+		mtx:      sync.RWMutex{},
 	}
 }

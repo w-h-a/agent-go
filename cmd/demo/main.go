@@ -19,8 +19,8 @@ import (
 	"github.com/w-h-a/agent/cmd/demo/tool/research"
 	"github.com/w-h-a/agent/generator"
 	openaigenerator "github.com/w-h-a/agent/generator/openai"
-	"github.com/w-h-a/agent/retriever"
-	"github.com/w-h-a/agent/retriever/gomento"
+	memorymanager "github.com/w-h-a/agent/memory_manager"
+	"github.com/w-h-a/agent/memory_manager/gomento"
 	"github.com/w-h-a/agent/server"
 	httpserver "github.com/w-h-a/agent/server/http"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
@@ -30,9 +30,9 @@ import (
 
 var (
 	cfg struct {
-		// Retriever config
-		RetrieverLocation string `help:"Address of memory store for retriever client" default:"http://localhost:4000"`
-		// RetrieverLocation string `help:"Address of memory store for retriever client" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
+		// Memory config
+		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
+		// MemoryLocation string `help:"Address of memory store for memory manager" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
 		Window      int    `help:"Short-term memory window size per session" default:"8"`
 		EmbedderKey string `help:"API Key for the embedder" default:""`
 		Embedder    string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
@@ -75,19 +75,10 @@ func main() {
 	}()
 	time.Sleep(200 * time.Millisecond)
 
-	// Create retriever
-	re := gomento.NewRetriever(
-		retriever.WithLocation(cfg.RetrieverLocation),
+	// Create memory manager
+	re := gomento.NewMemoryManager(
+		memorymanager.WithLocation(cfg.MemoryLocation),
 	)
-
-	// re := postgres.NewRetriever(
-	// 	retriever.WithLocation(cfg.RetrieverLocation),
-	// 	retriever.WithShortTermMemorySize(cfg.Window),
-	// 	retriever.WithEmbedder(openaiembedder.NewEmbedder(
-	// 		embedder.WithApiKey(cfg.EmbedderKey),
-	// 		embedder.WithModel(cfg.Embedder),
-	// 	)),
-	// )
 
 	// Create primary agent's model
 	primaryModel := openaigenerator.NewGenerator(
@@ -147,12 +138,11 @@ func main() {
 	// fmt.Printf("✅ Connected to Space: %s\n", spaceId)
 
 	// 1. Start session
-	session, err := adk.NewSession(ctx, cfg.Session)
+	sessionId, flush, err := adk.NewSession(ctx, cfg.Session)
 	if err != nil {
 		log.Fatalf("❌ failed to start session: %v", err)
 	}
-	defer session.Flush(ctx)
-	sessionId := session.ID()
+	defer flush(ctx)
 	fmt.Printf("✅ Started Session: %s\n", sessionId)
 
 	// 2. Simulate Conversation

@@ -1,4 +1,4 @@
-package retriever
+package memorymanager
 
 type Skill struct {
 	Id        string    `json:"id"`

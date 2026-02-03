@@ -1,4 +1,4 @@
-package retriever
+package memorymanager
 
 type Message struct {
 	Id        string    `json:"id"`

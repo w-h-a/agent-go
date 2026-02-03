@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/sashabaranov/go-openai"
-	"github.com/w-h-a/agent/embedder"
+	"github.com/w-h-a/agent/memory_manager/providers/embedder"
 )
 
 type openAIEmbedder struct {

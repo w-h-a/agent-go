@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/generative-ai-go/genai"
-	"github.com/w-h-a/agent/embedder"
+	"github.com/w-h-a/agent/memory_manager/providers/embedder"
 	genaiopt "google.golang.org/api/option"
 )
 

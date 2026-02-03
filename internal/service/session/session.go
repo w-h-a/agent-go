@@ -3,12 +3,12 @@ package session
 import (
 	"context"
 
-	"github.com/w-h-a/agent/retriever"
+	memorymanager "github.com/w-h-a/agent/memory_manager"
 )
 
 type Session struct {
-	retriever retriever.Retriever
-	id        string
+	memory memorymanager.MemoryManager
+	id     string
 }
 
 func (s *Session) ID() string {
@@ -16,5 +16,5 @@ func (s *Session) ID() string {
 }
 
 func (s *Session) Flush(ctx context.Context) error {
-	return s.retriever.FlushToLongTerm(ctx, s.id)
+	return s.memory.FlushToLongTerm(ctx, s.id)
 }

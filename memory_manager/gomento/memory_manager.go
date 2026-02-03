@@ -10,15 +10,15 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/w-h-a/agent/retriever"
+	memorymanager "github.com/w-h-a/agent/memory_manager"
 )
 
-type gomentoRetriever struct {
-	options retriever.Options
+type gomentoMemoryManager struct {
+	options memorymanager.Options
 	client  *http.Client
 }
 
-func (r *gomentoRetriever) CreateSpace(ctx context.Context, name string) (string, error) {
+func (r *gomentoMemoryManager) CreateSpace(ctx context.Context, name string) (string, error) {
 	bs := []byte(fmt.Sprintf(`{"name": "%s"}`, name))
 
 	req, err := http.NewRequestWithContext(
@@ -54,8 +54,8 @@ func (r *gomentoRetriever) CreateSpace(ctx context.Context, name string) (string
 	return res.Id, nil
 }
 
-func (r *gomentoRetriever) CreateSession(ctx context.Context, opts ...retriever.CreateSessionOption) (string, error) {
-	options := retriever.NewSessionOptions(opts...)
+func (r *gomentoMemoryManager) CreateSession(ctx context.Context, opts ...memorymanager.CreateSessionOption) (string, error) {
+	options := memorymanager.NewSessionOptions(opts...)
 
 	bs := []byte(fmt.Sprintf(`{"space_id": "%s"}`, options.SpaceId))
 
@@ -92,8 +92,8 @@ func (r *gomentoRetriever) CreateSession(ctx context.Context, opts ...retriever.
 	return res.Id, nil
 }
 
-func (r *gomentoRetriever) AddShortTerm(ctx context.Context, sessionId string, role string, parts []retriever.Part, opts ...retriever.AddToShortTermOption) error {
-	options := retriever.NewAddToShortTermOptions(opts...)
+func (r *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId string, role string, parts []memorymanager.Part, opts ...memorymanager.AddToShortTermOption) error {
+	options := memorymanager.NewAddToShortTermOptions(opts...)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -168,7 +168,7 @@ func (r *gomentoRetriever) AddShortTerm(ctx context.Context, sessionId string, r
 	return nil
 }
 
-func (r *gomentoRetriever) FlushToLongTerm(ctx context.Context, sessionId string) error {
+func (r *gomentoMemoryManager) FlushToLongTerm(ctx context.Context, sessionId string) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -192,8 +192,8 @@ func (r *gomentoRetriever) FlushToLongTerm(ctx context.Context, sessionId string
 	return nil
 }
 
-func (r *gomentoRetriever) ListShortTerm(ctx context.Context, sessionId string, opts ...retriever.ListShortTermOption) ([]retriever.Message, []retriever.Task, error) {
-	options := retriever.NewListShortTermOptions(opts...)
+func (r *gomentoMemoryManager) ListShortTerm(ctx context.Context, sessionId string, opts ...memorymanager.ListShortTermOption) ([]memorymanager.Message, []memorymanager.Task, error) {
+	options := memorymanager.NewListShortTermOptions(opts...)
 
 	msgReq, err := http.NewRequestWithContext(
 		ctx,
@@ -216,7 +216,7 @@ func (r *gomentoRetriever) ListShortTerm(ctx context.Context, sessionId string, 
 	}
 
 	var msgRes struct {
-		Items []retriever.Message `json:"items"`
+		Items []memorymanager.Message `json:"items"`
 	}
 
 	if err := json.NewDecoder(msgRsp.Body).Decode(&msgRes); err != nil {
@@ -244,7 +244,7 @@ func (r *gomentoRetriever) ListShortTerm(ctx context.Context, sessionId string, 
 	}
 
 	var taskRes struct {
-		Items []retriever.Task `json:"items"`
+		Items []memorymanager.Task `json:"items"`
 	}
 
 	if err := json.NewDecoder(taskRsp.Body).Decode(&taskRes); err != nil {
@@ -254,8 +254,8 @@ func (r *gomentoRetriever) ListShortTerm(ctx context.Context, sessionId string, 
 	return msgRes.Items, taskRes.Items, nil
 }
 
-func (r *gomentoRetriever) SearchLongTerm(ctx context.Context, query string, opts ...retriever.SearchLongTermOption) ([]retriever.Message, []retriever.Skill, error) {
-	options := retriever.NewSearchOptions(opts...)
+func (r *gomentoMemoryManager) SearchLongTerm(ctx context.Context, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
+	options := memorymanager.NewSearchOptions(opts...)
 
 	params := url.Values{}
 	params.Add("q", query)
@@ -280,7 +280,7 @@ func (r *gomentoRetriever) SearchLongTerm(ctx context.Context, query string, opt
 		return nil, nil, fmt.Errorf("status: %s", msgRsp.Status)
 	}
 
-	var msgRes []retriever.Message
+	var msgRes []memorymanager.Message
 
 	if err := json.NewDecoder(msgRsp.Body).Decode(&msgRes); err != nil {
 		return nil, nil, err
@@ -306,7 +306,7 @@ func (r *gomentoRetriever) SearchLongTerm(ctx context.Context, query string, opt
 		return nil, nil, fmt.Errorf("status: %s", skillRsp.Status)
 	}
 
-	var skillRes []retriever.Skill
+	var skillRes []memorymanager.Skill
 
 	if err := json.NewDecoder(skillRsp.Body).Decode(&skillRes); err != nil {
 		return nil, nil, err
@@ -315,10 +315,10 @@ func (r *gomentoRetriever) SearchLongTerm(ctx context.Context, query string, opt
 	return msgRes, skillRes, nil
 }
 
-func NewRetriever(opts ...retriever.Option) retriever.Retriever {
-	options := retriever.NewOptions(opts...)
+func NewMemoryManager(opts ...memorymanager.Option) memorymanager.MemoryManager {
+	options := memorymanager.NewOptions(opts...)
 
-	r := &gomentoRetriever{
+	r := &gomentoMemoryManager{
 		options: options,
 	}
 
