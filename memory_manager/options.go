@@ -2,13 +2,33 @@ package memorymanager
 
 import (
 	"context"
+	"time"
+
+	"github.com/w-h-a/agent/memory_manager/providers/embedder"
+	"github.com/w-h-a/agent/memory_manager/providers/storer"
 )
 
 type Option func(*Options)
 
 type Options struct {
-	Location string
-	Context  context.Context
+	Location          string
+	Storer            storer.Storer
+	Embedder          embedder.Embedder
+	SessionWindowSize int
+	Weights           Weights
+	Thresholds        Thresholds
+	Context           context.Context
+}
+
+type Weights struct {
+	Similarity float64
+	Recency    float64
+}
+
+type Thresholds struct {
+	Relevance           float64
+	HalfLife            time.Duration
+	RejectionSimilarity float64
 }
 
 func WithLocation(loc string) Option {
@@ -17,8 +37,42 @@ func WithLocation(loc string) Option {
 	}
 }
 
+func WithStorer(storer storer.Storer) Option {
+	return func(o *Options) {
+		o.Storer = storer
+	}
+}
+
+func WithEmbedder(embedder embedder.Embedder) Option {
+	return func(o *Options) {
+		o.Embedder = embedder
+	}
+}
+
+func WithWeights(weights Weights) Option {
+	return func(o *Options) {
+		o.Weights = weights
+	}
+}
+
+func WithThresholds(thresholds Thresholds) Option {
+	return func(o *Options) {
+		o.Thresholds = thresholds
+	}
+}
+
 func NewOptions(opts ...Option) Options {
 	options := Options{
+		SessionWindowSize: 20,
+		Weights: Weights{
+			Similarity: 1.0, // exact semantic match
+			Recency:    0.5, // medium bias for recency
+		},
+		Thresholds: Thresholds{
+			Relevance:           0.7,            // mild diversity
+			HalfLife:            72 * time.Hour, // 3 days
+			RejectionSimilarity: 0.97,           // strong bias against duplicates
+		},
 		Context: context.Background(),
 	}
 	for _, opt := range opts {
@@ -40,7 +94,7 @@ func WithSpaceId(spaceId string) CreateSessionOption {
 	}
 }
 
-func NewSessionOptions(opts ...CreateSessionOption) CreateSessionOptions {
+func NewCreateSessionOptions(opts ...CreateSessionOption) CreateSessionOptions {
 	options := CreateSessionOptions{
 		Context: context.Background(),
 	}
@@ -118,6 +172,7 @@ func WithSearchLongTermSpaceId(spaceId string) SearchLongTermOption {
 
 func NewSearchOptions(opts ...SearchLongTermOption) SearchLongTermOptions {
 	options := SearchLongTermOptions{
+		Limit:   5,
 		Context: context.Background(),
 	}
 	for _, opt := range opts {

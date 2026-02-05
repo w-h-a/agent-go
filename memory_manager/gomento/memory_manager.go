@@ -18,13 +18,13 @@ type gomentoMemoryManager struct {
 	client  *http.Client
 }
 
-func (r *gomentoMemoryManager) CreateSpace(ctx context.Context, name string) (string, error) {
+func (m *gomentoMemoryManager) CreateSpace(ctx context.Context, name string) (string, error) {
 	bs := []byte(fmt.Sprintf(`{"name": "%s"}`, name))
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/api/v1/spaces", r.options.Location),
+		fmt.Sprintf("%s/api/v1/spaces", m.options.Location),
 		bytes.NewReader(bs),
 	)
 	if err != nil {
@@ -33,7 +33,7 @@ func (r *gomentoMemoryManager) CreateSpace(ctx context.Context, name string) (st
 
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp, err := r.client.Do(req)
+	rsp, err := m.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -54,15 +54,15 @@ func (r *gomentoMemoryManager) CreateSpace(ctx context.Context, name string) (st
 	return res.Id, nil
 }
 
-func (r *gomentoMemoryManager) CreateSession(ctx context.Context, opts ...memorymanager.CreateSessionOption) (string, error) {
-	options := memorymanager.NewSessionOptions(opts...)
+func (m *gomentoMemoryManager) CreateSession(ctx context.Context, opts ...memorymanager.CreateSessionOption) (string, error) {
+	options := memorymanager.NewCreateSessionOptions(opts...)
 
 	bs := []byte(fmt.Sprintf(`{"space_id": "%s"}`, options.SpaceId))
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/api/v1/sessions", r.options.Location),
+		fmt.Sprintf("%s/api/v1/sessions", m.options.Location),
 		bytes.NewReader(bs),
 	)
 	if err != nil {
@@ -71,7 +71,7 @@ func (r *gomentoMemoryManager) CreateSession(ctx context.Context, opts ...memory
 
 	req.Header.Add("Content-Type", "application/json")
 
-	rsp, err := r.client.Do(req)
+	rsp, err := m.client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -92,7 +92,7 @@ func (r *gomentoMemoryManager) CreateSession(ctx context.Context, opts ...memory
 	return res.Id, nil
 }
 
-func (r *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId string, role string, parts []memorymanager.Part, opts ...memorymanager.AddToShortTermOption) error {
+func (m *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId string, role string, parts []memorymanager.Part, opts ...memorymanager.AddToShortTermOption) error {
 	options := memorymanager.NewAddToShortTermOptions(opts...)
 
 	body := &bytes.Buffer{}
@@ -128,7 +128,7 @@ func (r *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId strin
 	msgReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/api/v1/sessions/%s/messages", r.options.Location, sessionId),
+		fmt.Sprintf("%s/api/v1/sessions/%s/messages", m.options.Location, sessionId),
 		body,
 	)
 	if err != nil {
@@ -137,7 +137,7 @@ func (r *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId strin
 
 	msgReq.Header.Add("Content-Type", writer.FormDataContentType())
 
-	msgRsp, err := r.client.Do(msgReq)
+	msgRsp, err := m.client.Do(msgReq)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (r *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId strin
 	extractReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/api/v1/sessions/%s/extract", r.options.Location, sessionId),
+		fmt.Sprintf("%s/api/v1/sessions/%s/extract", m.options.Location, sessionId),
 		nil,
 	)
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId strin
 		return nil
 	}
 
-	extractRsp, err := r.client.Do(extractReq)
+	extractRsp, err := m.client.Do(extractReq)
 	if err != nil {
 		// TODO: trace/log but don't fail the whole operation here
 		return nil
@@ -168,44 +168,20 @@ func (r *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId strin
 	return nil
 }
 
-func (r *gomentoMemoryManager) FlushToLongTerm(ctx context.Context, sessionId string) error {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("%s/api/v1/sessions/%s/distill", r.options.Location, sessionId),
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	rsp, err := r.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer rsp.Body.Close()
-
-	if rsp.StatusCode >= 400 {
-		return fmt.Errorf("distill status: %s", rsp.Status)
-	}
-
-	return nil
-}
-
-func (r *gomentoMemoryManager) ListShortTerm(ctx context.Context, sessionId string, opts ...memorymanager.ListShortTermOption) ([]memorymanager.Message, []memorymanager.Task, error) {
+func (m *gomentoMemoryManager) ListShortTerm(ctx context.Context, sessionId string, opts ...memorymanager.ListShortTermOption) ([]memorymanager.Message, []memorymanager.Task, error) {
 	options := memorymanager.NewListShortTermOptions(opts...)
 
 	msgReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("%s/api/v1/sessions/%s/messages?limit=%d", r.options.Location, sessionId, options.Limit),
+		fmt.Sprintf("%s/api/v1/sessions/%s/messages?limit=%d", m.options.Location, sessionId, options.Limit),
 		nil,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	msgRsp, err := r.client.Do(msgReq)
+	msgRsp, err := m.client.Do(msgReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -226,14 +202,14 @@ func (r *gomentoMemoryManager) ListShortTerm(ctx context.Context, sessionId stri
 	taskReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("%s/api/v1/sessions/%s/tasks", r.options.Location, sessionId),
+		fmt.Sprintf("%s/api/v1/sessions/%s/tasks", m.options.Location, sessionId),
 		nil,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	taskRsp, err := r.client.Do(taskReq)
+	taskRsp, err := m.client.Do(taskReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -254,7 +230,31 @@ func (r *gomentoMemoryManager) ListShortTerm(ctx context.Context, sessionId stri
 	return msgRes.Items, taskRes.Items, nil
 }
 
-func (r *gomentoMemoryManager) SearchLongTerm(ctx context.Context, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
+func (m *gomentoMemoryManager) FlushToLongTerm(ctx context.Context, sessionId string) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		fmt.Sprintf("%s/api/v1/sessions/%s/distill", m.options.Location, sessionId),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	rsp, err := m.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode >= 400 {
+		return fmt.Errorf("distill status: %s", rsp.Status)
+	}
+
+	return nil
+}
+
+func (m *gomentoMemoryManager) SearchLongTerm(ctx context.Context, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
 	options := memorymanager.NewSearchOptions(opts...)
 
 	params := url.Values{}
@@ -263,14 +263,14 @@ func (r *gomentoMemoryManager) SearchLongTerm(ctx context.Context, query string,
 	msgReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("%s/api/v1/spaces/%s/messages?%s", r.options.Location, options.SpaceId, params.Encode()),
+		fmt.Sprintf("%s/api/v1/spaces/%s/messages?%s", m.options.Location, options.SpaceId, params.Encode()),
 		nil,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	msgRsp, err := r.client.Do(msgReq)
+	msgRsp, err := m.client.Do(msgReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -289,14 +289,14 @@ func (r *gomentoMemoryManager) SearchLongTerm(ctx context.Context, query string,
 	skillReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("%s/api/v1/spaces/%s/skills?%s", r.options.Location, options.SpaceId, params.Encode()),
+		fmt.Sprintf("%s/api/v1/spaces/%s/skills?%s", m.options.Location, options.SpaceId, params.Encode()),
 		nil,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	skillRsp, err := r.client.Do(skillReq)
+	skillRsp, err := m.client.Do(skillReq)
 	if err != nil {
 		return nil, nil, err
 	}

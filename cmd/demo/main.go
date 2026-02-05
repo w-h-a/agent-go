@@ -20,7 +20,11 @@ import (
 	"github.com/w-h-a/agent/generator"
 	openaigenerator "github.com/w-h-a/agent/generator/openai"
 	memorymanager "github.com/w-h-a/agent/memory_manager"
-	"github.com/w-h-a/agent/memory_manager/gomento"
+	"github.com/w-h-a/agent/memory_manager/munin"
+	"github.com/w-h-a/agent/memory_manager/providers/embedder"
+	openaiembedder "github.com/w-h-a/agent/memory_manager/providers/embedder/openai"
+	"github.com/w-h-a/agent/memory_manager/providers/storer"
+	"github.com/w-h-a/agent/memory_manager/providers/storer/postgres"
 	"github.com/w-h-a/agent/server"
 	httpserver "github.com/w-h-a/agent/server/http"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
@@ -31,11 +35,11 @@ import (
 var (
 	cfg struct {
 		// Memory config
-		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
-		// MemoryLocation string `help:"Address of memory store for memory manager" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
-		Window      int    `help:"Short-term memory window size per session" default:"8"`
-		EmbedderKey string `help:"API Key for the embedder" default:""`
-		Embedder    string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
+		// MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
+		MemoryLocation string `help:"Address of memory store for memory manager" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
+		Window         int    `help:"Short-term memory window size per session" default:"8"`
+		EmbedderKey    string `help:"API Key for the embedder" default:""`
+		Embedder       string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
 
 		// Generator config
 		GeneratorKey string `help:"API Key for the generator" default:""`
@@ -76,8 +80,22 @@ func main() {
 	time.Sleep(200 * time.Millisecond)
 
 	// Create memory manager
-	re := gomento.NewMemoryManager(
-		memorymanager.WithLocation(cfg.MemoryLocation),
+	// re := gomento.NewMemoryManager(
+	// 	memorymanager.WithLocation(cfg.MemoryLocation),
+	// )
+
+	re := munin.NewMemoryManager(
+		memorymanager.WithStorer(
+			postgres.NewStorer(
+				storer.WithLocation(cfg.MemoryLocation),
+			),
+		),
+		memorymanager.WithEmbedder(
+			openaiembedder.NewEmbedder(
+				embedder.WithApiKey(cfg.EmbedderKey),
+				embedder.WithModel(cfg.Embedder),
+			),
+		),
 	)
 
 	// Create primary agent's model

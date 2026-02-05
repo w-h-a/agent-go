@@ -40,25 +40,19 @@ type postgresStorer struct {
 }
 
 func (p *postgresStorer) Upsert(ctx context.Context, sessionId string, content string, metadata map[string]any, vector []float32) error {
-	importance := 0.0
-	if v, ok := metadata["importance"].(float64); ok {
-		importance = v
-	}
-
 	metaJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("marshal metadata: %w", err)
 	}
 
 	query := `
-		INSERT INTO memory_bank (
+		INSERT INTO messages (
 			session_id, 
 			content, 
-			importance, 
 			metadata, 
 			embedding
 		)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3, $4)
 	`
 
 	_, err = p.conn.ExecContext(
@@ -66,7 +60,6 @@ func (p *postgresStorer) Upsert(ctx context.Context, sessionId string, content s
 		query,
 		sessionId,
 		content,
-		importance,
 		metaJSON,
 		pgvector.NewVector(vector),
 	)
@@ -80,12 +73,11 @@ func (p *postgresStorer) Search(ctx context.Context, vector []float32, limit int
 			id, 
 			session_id, 
 			content, 
-			importance, 
 			metadata, 
 			1 - (embedding <=> $1) as score,
 			created_at, 
 			updated_at
-		FROM memory_bank
+		FROM messages
 		ORDER BY embedding <=> $1
 		LIMIT $2
 	`
@@ -107,7 +99,6 @@ func (p *postgresStorer) Search(ctx context.Context, vector []float32, limit int
 			&id,
 			&rec.SessionId,
 			&rec.Content,
-			&rec.Importance,
 			&metaBytes,
 			&rec.Score,
 			&rec.CreatedAt,
