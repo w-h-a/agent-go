@@ -132,7 +132,7 @@ func (m *muninMemoryManager) FlushToLongTerm(ctx context.Context, sessionId stri
 			"source": msg.Role,
 		}
 
-		if err := m.options.Storer.Upsert(ctx, sessionId, content, meta, vec); err != nil {
+		if err := m.options.Storer.Store(ctx, sessionId, content, meta, vec); err != nil {
 			return err
 		}
 	}

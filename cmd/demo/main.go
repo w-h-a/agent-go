@@ -24,7 +24,7 @@ import (
 	"github.com/w-h-a/agent/memory_manager/providers/embedder"
 	openaiembedder "github.com/w-h-a/agent/memory_manager/providers/embedder/openai"
 	"github.com/w-h-a/agent/memory_manager/providers/storer"
-	"github.com/w-h-a/agent/memory_manager/providers/storer/postgres"
+	"github.com/w-h-a/agent/memory_manager/providers/storer/qdrant"
 	"github.com/w-h-a/agent/server"
 	httpserver "github.com/w-h-a/agent/server/http"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
@@ -36,7 +36,8 @@ var (
 	cfg struct {
 		// Memory config
 		// MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
-		MemoryLocation string `help:"Address of memory store for memory manager" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
+		// MemoryLocation string `help:"Address of memory store for memory manager" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
+		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:6333"`
 		Window         int    `help:"Short-term memory window size per session" default:"8"`
 		EmbedderKey    string `help:"API Key for the embedder" default:""`
 		Embedder       string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
@@ -86,8 +87,10 @@ func main() {
 
 	re := munin.NewMemoryManager(
 		memorymanager.WithStorer(
-			postgres.NewStorer(
+			qdrant.NewStorer(
 				storer.WithLocation(cfg.MemoryLocation),
+				storer.WithCollection("agent_memory"),
+				storer.WithVectorSize(1536),
 			),
 		),
 		memorymanager.WithEmbedder(
@@ -185,8 +188,6 @@ func main() {
 	}
 	fmt.Println("✅ Populated conversation history.")
 
-	fmt.Println("💾 All interactions flushed to long-term memory.")
-
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -198,6 +199,8 @@ func main() {
 
 	wg.Wait()
 	close(errCh)
+
+	fmt.Println("💾 All interactions flushed to long-term memory.")
 }
 
 func initHttpServer(ctx context.Context, addr string) (server.Server, error) {

@@ -39,7 +39,7 @@ type postgresStorer struct {
 	conn    *sql.DB
 }
 
-func (p *postgresStorer) Upsert(ctx context.Context, sessionId string, content string, metadata map[string]any, vector []float32) error {
+func (p *postgresStorer) Store(ctx context.Context, sessionId string, content string, metadata map[string]any, vector []float32) error {
 	metaJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("marshal metadata: %w", err)
@@ -68,6 +68,10 @@ func (p *postgresStorer) Upsert(ctx context.Context, sessionId string, content s
 }
 
 func (p *postgresStorer) Search(ctx context.Context, vector []float32, limit int) ([]storer.Record, error) {
+	if limit < 1 {
+		return nil, nil
+	}
+
 	query := `
 		SELECT 
 			id, 
