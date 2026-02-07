@@ -17,7 +17,7 @@ type memoryStorer struct {
 	mtx     sync.RWMutex
 }
 
-func (s *memoryStorer) Store(ctx context.Context, sessionId string, content string, metadata map[string]any, vector []float32) error {
+func (s *memoryStorer) Store(ctx context.Context, spaceId string, sessionId string, content string, metadata map[string]any, vector []float32) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -34,6 +34,7 @@ func (s *memoryStorer) Store(ctx context.Context, sessionId string, content stri
 		Content:   content,
 		Metadata:  metadata,
 		Embedding: cpy,
+		Space:     spaceId,
 		CreatedAt: now,
 	}
 
@@ -42,7 +43,7 @@ func (s *memoryStorer) Store(ctx context.Context, sessionId string, content stri
 	return nil
 }
 
-func (s *memoryStorer) Search(ctx context.Context, vector []float32, limit int) ([]storer.Record, error) {
+func (s *memoryStorer) Search(ctx context.Context, spaceId string, vector []float32, limit int) ([]storer.Record, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -53,6 +54,9 @@ func (s *memoryStorer) Search(ctx context.Context, vector []float32, limit int) 
 	candidates := make([]storer.Record, 0, len(s.records))
 
 	for _, rec := range s.records {
+		if rec.Space != spaceId {
+			continue
+		}
 		score := memorymanager.CosineSimilarity(vector, rec.Embedding)
 		rec.Score = float32(score)
 		candidates = append(candidates, rec)

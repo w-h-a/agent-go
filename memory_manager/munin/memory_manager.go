@@ -14,25 +14,34 @@ import (
 )
 
 type muninMemoryManager struct {
-	options   memorymanager.Options
-	counter   atomic.Uint64
-	shortTerm map[string][]memorymanager.Message
-	mtx       sync.RWMutex
+	options        memorymanager.Options
+	spaceCounter   atomic.Uint64
+	sessionCounter atomic.Uint64
+	shortTerm      map[string]*sessionBuffer
+	mtx            sync.RWMutex
 }
 
 func (m *muninMemoryManager) CreateSpace(ctx context.Context, name string) (string, error) {
-	return "default", nil
+	id := fmt.Sprintf("space-%d", m.spaceCounter.Add(1))
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return id, nil
 }
 
 func (m *muninMemoryManager) CreateSession(ctx context.Context, opts ...memorymanager.CreateSessionOption) (string, error) {
 	options := memorymanager.NewCreateSessionOptions(opts...)
 
-	id := fmt.Sprintf("session-%s-%d", options.SpaceId, m.counter.Add(1))
+	id := fmt.Sprintf("session-%s-%d", options.SpaceId, m.sessionCounter.Add(1))
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	m.shortTerm[id] = []memorymanager.Message{}
+	m.shortTerm[id] = &sessionBuffer{
+		spaceId:  options.SpaceId,
+		messages: []memorymanager.Message{},
+	}
 
 	return id, nil
 }
@@ -41,16 +50,17 @@ func (m *muninMemoryManager) AddShortTerm(ctx context.Context, sessionId string,
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if _, exists := m.shortTerm[sessionId]; !exists {
+	buffer, exists := m.shortTerm[sessionId]
+	if !exists {
 		return fmt.Errorf("session %s not found", sessionId)
 	}
 
-	m.shortTerm[sessionId] = append(m.shortTerm[sessionId], memorymanager.Message{
+	buffer.messages = append(buffer.messages, memorymanager.Message{
 		SessionId: sessionId, Role: role, Parts: parts,
 	})
 
-	if len(m.shortTerm[sessionId]) > m.options.SessionWindowSize {
-		m.shortTerm[sessionId] = m.shortTerm[sessionId][len(m.shortTerm[sessionId])-m.options.SessionWindowSize:]
+	if len(buffer.messages) > m.options.SessionWindowSize {
+		buffer.messages = buffer.messages[len(buffer.messages)-m.options.SessionWindowSize:]
 	}
 
 	return nil
@@ -62,13 +72,13 @@ func (m *muninMemoryManager) ListShortTerm(ctx context.Context, sessionId string
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	history, exists := m.shortTerm[sessionId]
+	buffer, exists := m.shortTerm[sessionId]
 	if !exists {
 		return nil, nil, fmt.Errorf("session %s not found", sessionId)
 	}
 
-	copied := make([]memorymanager.Message, len(history))
-	copy(copied, history)
+	copied := make([]memorymanager.Message, len(buffer.messages))
+	copy(copied, buffer.messages)
 
 	if len(copied) > options.Limit {
 		copied = copied[len(copied)-options.Limit:]
@@ -79,7 +89,13 @@ func (m *muninMemoryManager) ListShortTerm(ctx context.Context, sessionId string
 
 func (m *muninMemoryManager) FlushToLongTerm(ctx context.Context, sessionId string) error {
 	m.mtx.RLock()
-	history, exists := m.shortTerm[sessionId]
+	buffer, exists := m.shortTerm[sessionId]
+	var history []memorymanager.Message
+	var spaceId string
+	if exists {
+		history = buffer.messages
+		spaceId = buffer.spaceId
+	}
 	m.mtx.RUnlock()
 
 	if !exists {
@@ -110,7 +126,7 @@ func (m *muninMemoryManager) FlushToLongTerm(ctx context.Context, sessionId stri
 		// no matter what the similarity score is from storer
 		// check cosinesimilarity and skip if we already have good matches
 		// unless the current best match is old
-		candidates, _ := m.options.Storer.Search(ctx, vec, 1)
+		candidates, _ := m.options.Storer.Search(ctx, spaceId, vec, 1)
 		shouldSave := true
 
 		if len(candidates) > 0 {
@@ -132,7 +148,7 @@ func (m *muninMemoryManager) FlushToLongTerm(ctx context.Context, sessionId stri
 			"source": msg.Role,
 		}
 
-		if err := m.options.Storer.Store(ctx, sessionId, content, meta, vec); err != nil {
+		if err := m.options.Storer.Store(ctx, spaceId, sessionId, content, meta, vec); err != nil {
 			return err
 		}
 	}
@@ -140,15 +156,27 @@ func (m *muninMemoryManager) FlushToLongTerm(ctx context.Context, sessionId stri
 	return nil
 }
 
-func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
+func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, sessionId string, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
 	options := memorymanager.NewSearchOptions(opts...)
+
+	m.mtx.RLock()
+	buffer, exists := m.shortTerm[sessionId]
+	var spaceId string
+	if exists {
+		spaceId = buffer.spaceId
+	}
+	m.mtx.RUnlock()
+
+	if !exists {
+		return nil, nil, fmt.Errorf("session %s not found", sessionId)
+	}
 
 	vec, err := m.options.Embedder.Embed(ctx, query)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	candidates, err := m.options.Storer.Search(ctx, vec, options.Limit*4)
+	candidates, err := m.options.Storer.Search(ctx, spaceId, vec, options.Limit*4)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -204,7 +232,7 @@ func NewMemoryManager(opts ...memorymanager.Option) memorymanager.MemoryManager 
 
 	m := &muninMemoryManager{
 		options:   options,
-		shortTerm: map[string][]memorymanager.Message{},
+		shortTerm: map[string]*sessionBuffer{},
 		mtx:       sync.RWMutex{},
 	}
 

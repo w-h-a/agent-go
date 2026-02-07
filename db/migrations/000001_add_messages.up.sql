@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
     embedding vector(1536),
+    space_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

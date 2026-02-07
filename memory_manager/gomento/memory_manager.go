@@ -9,13 +9,16 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"sync"
 
 	memorymanager "github.com/w-h-a/agent/memory_manager"
 )
 
 type gomentoMemoryManager struct {
-	options memorymanager.Options
-	client  *http.Client
+	options       memorymanager.Options
+	client        *http.Client
+	sessionSpaces map[string]string
+	mtx           sync.RWMutex
 }
 
 func (m *gomentoMemoryManager) CreateSpace(ctx context.Context, name string) (string, error) {
@@ -88,6 +91,10 @@ func (m *gomentoMemoryManager) CreateSession(ctx context.Context, opts ...memory
 	if err := json.NewDecoder(rsp.Body).Decode(&res); err != nil {
 		return "", err
 	}
+
+	m.mtx.Lock()
+	m.sessionSpaces[res.Id] = options.SpaceId
+	m.mtx.Unlock()
 
 	return res.Id, nil
 }
@@ -254,72 +261,145 @@ func (m *gomentoMemoryManager) FlushToLongTerm(ctx context.Context, sessionId st
 	return nil
 }
 
-func (m *gomentoMemoryManager) SearchLongTerm(ctx context.Context, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
-	options := memorymanager.NewSearchOptions(opts...)
+func (m *gomentoMemoryManager) SearchLongTerm(ctx context.Context, sessionId string, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
+	// TODO: gomento should account for limit
+	// options := memorymanager.NewSearchOptions(opts...)
 
+	m.mtx.Lock()
+	spaceId, exists := m.sessionSpaces[sessionId]
+	if !exists {
+		fetchedSpaceId, err := m.fetchSessionSpaceId(ctx, sessionId)
+		if err != nil {
+			m.mtx.Unlock()
+			return nil, nil, fmt.Errorf("failed to resolve session space: %w", err)
+		}
+		spaceId = fetchedSpaceId
+		m.sessionSpaces[sessionId] = spaceId
+	}
+	m.mtx.Unlock()
+
+	if len(spaceId) == 0 {
+		return []memorymanager.Message{}, []memorymanager.Skill{}, nil
+	}
+
+	msgs, err := m.searchSpaceForMessages(ctx, spaceId, query)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	skills, err := m.searchSpaceForSkills(ctx, spaceId, query)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return msgs, skills, nil
+}
+
+func (m *gomentoMemoryManager) fetchSessionSpaceId(ctx context.Context, sessionId string) (string, error) {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("%s/api/v1/sessions/%s", m.options.Location, sessionId),
+		nil,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	rsp, err := m.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer rsp.Body.Close()
+
+	if rsp.StatusCode >= 400 {
+		return "", fmt.Errorf("status: %s", rsp.Status)
+	}
+
+	var res struct {
+		Id      string `json:"id"`
+		SpaceId string `json:"space_id"`
+	}
+
+	if err := json.NewDecoder(rsp.Body).Decode(&res); err != nil {
+		return "", err
+	}
+
+	return res.SpaceId, nil
+}
+
+func (m *gomentoMemoryManager) searchSpaceForMessages(ctx context.Context, spaceId string, query string) ([]memorymanager.Message, error) {
 	params := url.Values{}
 	params.Add("q", query)
 
 	msgReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("%s/api/v1/spaces/%s/messages?%s", m.options.Location, options.SpaceId, params.Encode()),
+		fmt.Sprintf("%s/api/v1/spaces/%s/messages?%s", m.options.Location, spaceId, params.Encode()),
 		nil,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	msgRsp, err := m.client.Do(msgReq)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer msgRsp.Body.Close()
 
 	if msgRsp.StatusCode >= 400 {
-		return nil, nil, fmt.Errorf("status: %s", msgRsp.Status)
+		return nil, fmt.Errorf("status: %s", msgRsp.Status)
 	}
 
 	var msgRes []memorymanager.Message
 
 	if err := json.NewDecoder(msgRsp.Body).Decode(&msgRes); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+	return msgRes, nil
+}
+
+func (m *gomentoMemoryManager) searchSpaceForSkills(ctx context.Context, spaceId string, query string) ([]memorymanager.Skill, error) {
+	params := url.Values{}
+	params.Add("q", query)
 
 	skillReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("%s/api/v1/spaces/%s/skills?%s", m.options.Location, options.SpaceId, params.Encode()),
+		fmt.Sprintf("%s/api/v1/spaces/%s/skills?%s", m.options.Location, spaceId, params.Encode()),
 		nil,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	skillRsp, err := m.client.Do(skillReq)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer skillRsp.Body.Close()
 
 	if skillRsp.StatusCode >= 400 {
-		return nil, nil, fmt.Errorf("status: %s", skillRsp.Status)
+		return nil, fmt.Errorf("status: %s", skillRsp.Status)
 	}
 
 	var skillRes []memorymanager.Skill
 
 	if err := json.NewDecoder(skillRsp.Body).Decode(&skillRes); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return msgRes, skillRes, nil
+	return skillRes, nil
 }
 
 func NewMemoryManager(opts ...memorymanager.Option) memorymanager.MemoryManager {
 	options := memorymanager.NewOptions(opts...)
 
 	r := &gomentoMemoryManager{
-		options: options,
+		options:       options,
+		sessionSpaces: map[string]string{},
+		mtx:           sync.RWMutex{},
 	}
 
 	client := http.DefaultClient

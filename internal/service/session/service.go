@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -16,10 +15,14 @@ type Service struct {
 	mtx      sync.RWMutex
 }
 
-func (s *Service) CreateSession(ctx context.Context, id string) (*Session, error) {
+func (s *Service) CreateSession(ctx context.Context, id string, spaceId string) (*Session, error) {
 	if len(strings.TrimSpace(id)) == 0 {
 		var err error
-		id, err = s.memory.CreateSession(ctx)
+		opts := []memorymanager.CreateSessionOption{}
+		if len(spaceId) > 0 {
+			opts = append(opts, memorymanager.WithSpaceId(spaceId))
+		}
+		id, err = s.memory.CreateSession(ctx, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -33,8 +36,8 @@ func (s *Service) CreateSession(ctx context.Context, id string) (*Session, error
 	}
 
 	session := &Session{
-		memory: s.memory,
-		id:     id,
+		id:      id,
+		spaceId: spaceId,
 	}
 
 	s.sessions[id] = session
@@ -42,15 +45,14 @@ func (s *Service) CreateSession(ctx context.Context, id string) (*Session, error
 	return session, nil
 }
 
-func (s *Service) ListSessionIds(ctx context.Context) []string {
+func (s *Service) ListSessionIds(ctx context.Context) ([]string, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 	ids := make([]string, 0, len(s.sessions))
 	for id := range s.sessions {
 		ids = append(ids, id)
 	}
-	sort.Strings(ids)
-	return ids
+	return ids, nil
 }
 
 func (s *Service) GetSession(ctx context.Context, id string) (*Session, error) {

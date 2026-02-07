@@ -21,20 +21,12 @@ const (
 type Service struct {
 	memory       memorymanager.MemoryManager
 	generator    generator.Generator
-	catalog      *Catalog
+	catalog      *ToolCatalog
 	contextLimit int
 	systemPrompt string
 }
 
-func (s *Service) CreateSpace(ctx context.Context, name string) (string, error) {
-	return s.memory.CreateSpace(ctx, name)
-}
-
-func (s *Service) CreateSession(ctx context.Context, spaceId string) (string, error) {
-	return s.memory.CreateSession(ctx, memorymanager.WithSpaceId(spaceId))
-}
-
-func (s *Service) Respond(ctx context.Context, spaceId string, sessionId string, userInput string) (string, error) {
+func (s *Service) Respond(ctx context.Context, sessionId string, userInput string) (string, error) {
 	if len(strings.TrimSpace(userInput)) == 0 {
 		return "", errors.New("user input is required")
 	}
@@ -57,7 +49,7 @@ func (s *Service) Respond(ctx context.Context, spaceId string, sessionId string,
 		return output, nil
 	}
 
-	prompt, err := s.buildPrompt(ctx, spaceId, sessionId, userInput)
+	prompt, err := s.buildPrompt(ctx, sessionId, userInput)
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +78,7 @@ func (s *Service) addShortTerm(ctx context.Context, sessionId string, role strin
 	s.memory.AddShortTerm(ctx, sessionId, role, parts)
 }
 
-func (s *Service) buildPrompt(ctx context.Context, spaceId string, sessionId string, input string) (string, error) {
+func (s *Service) buildPrompt(ctx context.Context, sessionId string, input string) (string, error) {
 	// 1. Fetch Short-Term (Messages + Tasks)
 	shortTermMsgs, tasks, err := s.memory.ListShortTerm(
 		ctx,
@@ -98,19 +90,14 @@ func (s *Service) buildPrompt(ctx context.Context, spaceId string, sessionId str
 	}
 
 	// 2. Fetch Long-Term (Messages + Skills)
-	var longTermMsgs []memorymanager.Message
-	var skills []memorymanager.Skill
-	if len(spaceId) > 0 {
-		var err error
-		longTermMsgs, skills, err = s.memory.SearchLongTerm(
-			ctx,
-			input,
-			memorymanager.WithSearchLongTermSpaceId(spaceId),
-			memorymanager.WithSearchLongTermLimit(s.contextLimit),
-		)
-		if err != nil {
-			return "", fmt.Errorf("long-term error: %w", err)
-		}
+	longTermMsgs, skills, err := s.memory.SearchLongTerm(
+		ctx,
+		sessionId,
+		input,
+		memorymanager.WithSearchLongTermLimit(s.contextLimit),
+	)
+	if err != nil {
+		return "", fmt.Errorf("long-term error: %w", err)
 	}
 
 	// 3. Deduplicate Messages (Favor Long-Term)
@@ -242,7 +229,7 @@ func New(
 	contextLimit int,
 	systemPrompt string,
 ) *Service {
-	catalog := &Catalog{
+	catalog := &ToolCatalog{
 		tools: map[string]toolhandler.ToolHandler{},
 		specs: map[string]toolhandler.ToolSpec{},
 		order: []string{},

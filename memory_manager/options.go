@@ -154,19 +154,12 @@ type SearchLongTermOption func(*SearchLongTermOptions)
 
 type SearchLongTermOptions struct {
 	Limit   int
-	SpaceId string
 	Context context.Context
 }
 
 func WithSearchLongTermLimit(limit int) SearchLongTermOption {
 	return func(o *SearchLongTermOptions) {
 		o.Limit = limit
-	}
-}
-
-func WithSearchLongTermSpaceId(spaceId string) SearchLongTermOption {
-	return func(o *SearchLongTermOptions) {
-		o.SpaceId = spaceId
 	}
 }
 

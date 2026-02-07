@@ -22,13 +22,14 @@ type qdrantStorer struct {
 	client  *http.Client
 }
 
-func (s *qdrantStorer) Store(ctx context.Context, sessionId string, content string, metadata map[string]any, vector []float32) error {
+func (s *qdrantStorer) Store(ctx context.Context, spaceId string, sessionId string, content string, metadata map[string]any, vector []float32) error {
 	id := uuid.New().String()
 
 	payload := map[string]any{
 		"session_id": sessionId,
 		"content":    content,
 		"metadata":   metadata,
+		"space_id":   spaceId,
 		"created_at": time.Now().UTC().Format(time.RFC3339Nano),
 	}
 
@@ -57,7 +58,7 @@ func (s *qdrantStorer) Store(ctx context.Context, sessionId string, content stri
 	return nil
 }
 
-func (s *qdrantStorer) Search(ctx context.Context, vector []float32, limit int) ([]storer.Record, error) {
+func (s *qdrantStorer) Search(ctx context.Context, spaceId string, vector []float32, limit int) ([]storer.Record, error) {
 	if limit < 1 {
 		return nil, nil
 	}
@@ -67,6 +68,14 @@ func (s *qdrantStorer) Search(ctx context.Context, vector []float32, limit int) 
 		"limit":        limit,
 		"with_vector":  true,
 		"with_payload": true,
+		"filter": map[string]any{
+			"must": []map[string]any{
+				{
+					"key":   "space_id",
+					"match": map[string]any{"value": spaceId},
+				},
+			},
+		},
 	}
 
 	var rsp qdrantEnvelope[[]qdrantPointResult]
@@ -91,6 +100,7 @@ func (s *qdrantStorer) Search(ctx context.Context, vector []float32, limit int) 
 			Metadata:  getsafe.Metadata(payload, "metadata"),
 			Embedding: point.Vector,
 			Score:     float32(point.Score),
+			Space:     getsafe.String(payload, "space_id"),
 			CreatedAt: createdAt,
 		}
 

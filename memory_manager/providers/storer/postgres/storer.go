@@ -39,7 +39,7 @@ type postgresStorer struct {
 	conn    *sql.DB
 }
 
-func (p *postgresStorer) Store(ctx context.Context, sessionId string, content string, metadata map[string]any, vector []float32) error {
+func (p *postgresStorer) Store(ctx context.Context, spaceId, sessionId string, content string, metadata map[string]any, vector []float32) error {
 	metaJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("marshal metadata: %w", err)
@@ -50,9 +50,10 @@ func (p *postgresStorer) Store(ctx context.Context, sessionId string, content st
 			session_id, 
 			content, 
 			metadata, 
-			embedding
+			embedding,
+			space_id
 		)
-		VALUES ($1, $2, $3, $4)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 
 	_, err = p.conn.ExecContext(
@@ -62,12 +63,13 @@ func (p *postgresStorer) Store(ctx context.Context, sessionId string, content st
 		content,
 		metaJSON,
 		pgvector.NewVector(vector),
+		spaceId,
 	)
 
 	return err
 }
 
-func (p *postgresStorer) Search(ctx context.Context, vector []float32, limit int) ([]storer.Record, error) {
+func (p *postgresStorer) Search(ctx context.Context, spaceId string, vector []float32, limit int) ([]storer.Record, error) {
 	if limit < 1 {
 		return nil, nil
 	}
@@ -78,15 +80,17 @@ func (p *postgresStorer) Search(ctx context.Context, vector []float32, limit int
 			session_id, 
 			content, 
 			metadata, 
-			1 - (embedding <=> $1) as score,
+			1 - (embedding <=> $2) as score,
+			space_id,
 			created_at, 
 			updated_at
 		FROM messages
-		ORDER BY embedding <=> $1
-		LIMIT $2
+		WHERE space_id = $1
+		ORDER BY embedding <=> $2
+		LIMIT $3
 	`
 
-	rows, err := p.conn.QueryContext(ctx, query, pgvector.NewVector(vector), limit)
+	rows, err := p.conn.QueryContext(ctx, query, spaceId, pgvector.NewVector(vector), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +109,7 @@ func (p *postgresStorer) Search(ctx context.Context, vector []float32, limit int
 			&rec.Content,
 			&metaBytes,
 			&rec.Score,
+			&rec.Space,
 			&rec.CreatedAt,
 			&rec.UpdatedAt,
 		)

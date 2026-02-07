@@ -8,14 +8,14 @@ import (
 	toolhandler "github.com/w-h-a/agent/tool_handler"
 )
 
-type Catalog struct {
+type ToolCatalog struct {
 	tools map[string]toolhandler.ToolHandler
 	specs map[string]toolhandler.ToolSpec
 	order []string
 	mtx   sync.RWMutex
 }
 
-func (c *Catalog) Register(th toolhandler.ToolHandler) error {
+func (c *ToolCatalog) Register(th toolhandler.ToolHandler) error {
 	if th == nil {
 		return fmt.Errorf("tool is nil")
 	}
@@ -40,7 +40,7 @@ func (c *Catalog) Register(th toolhandler.ToolHandler) error {
 	return nil
 }
 
-func (c *Catalog) ListSpecs() []toolhandler.ToolSpec {
+func (c *ToolCatalog) ListSpecs() []toolhandler.ToolSpec {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
@@ -52,7 +52,7 @@ func (c *Catalog) ListSpecs() []toolhandler.ToolSpec {
 	return specs
 }
 
-func (c *Catalog) Get(name string) (toolhandler.ToolHandler, toolhandler.ToolSpec, bool) {
+func (c *ToolCatalog) Get(name string) (toolhandler.ToolHandler, toolhandler.ToolSpec, bool) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 

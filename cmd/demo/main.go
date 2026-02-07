@@ -20,11 +20,7 @@ import (
 	"github.com/w-h-a/agent/generator"
 	openaigenerator "github.com/w-h-a/agent/generator/openai"
 	memorymanager "github.com/w-h-a/agent/memory_manager"
-	"github.com/w-h-a/agent/memory_manager/munin"
-	"github.com/w-h-a/agent/memory_manager/providers/embedder"
-	openaiembedder "github.com/w-h-a/agent/memory_manager/providers/embedder/openai"
-	"github.com/w-h-a/agent/memory_manager/providers/storer"
-	"github.com/w-h-a/agent/memory_manager/providers/storer/qdrant"
+	"github.com/w-h-a/agent/memory_manager/gomento"
 	"github.com/w-h-a/agent/server"
 	httpserver "github.com/w-h-a/agent/server/http"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
@@ -35,12 +31,12 @@ import (
 var (
 	cfg struct {
 		// Memory config
-		// MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
+		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
 		// MemoryLocation string `help:"Address of memory store for memory manager" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
-		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:6333"`
-		Window         int    `help:"Short-term memory window size per session" default:"8"`
-		EmbedderKey    string `help:"API Key for the embedder" default:""`
-		Embedder       string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
+		// MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:6333"`
+		Window      int    `help:"Short-term memory window size per session" default:"8"`
+		EmbedderKey string `help:"API Key for the embedder" default:""`
+		Embedder    string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
 
 		// Generator config
 		GeneratorKey string `help:"API Key for the generator" default:""`
@@ -52,6 +48,9 @@ var (
 		// Agent config
 		Context      int    `help:"Number of conversation turns to send to the model" default:"6"`
 		SystemPrompt string `help:"System prompt for the agent" default:"You orchestrate tooling and specialists to help the user build AI agents."`
+
+		// Space config
+		Space string `help:"Option space identifier" default:""`
 
 		// Session config
 		Session string `help:"Optional fixed session identifier" default:""`
@@ -81,25 +80,25 @@ func main() {
 	time.Sleep(200 * time.Millisecond)
 
 	// Create memory manager
-	// re := gomento.NewMemoryManager(
-	// 	memorymanager.WithLocation(cfg.MemoryLocation),
-	// )
-
-	re := munin.NewMemoryManager(
-		memorymanager.WithStorer(
-			qdrant.NewStorer(
-				storer.WithLocation(cfg.MemoryLocation),
-				storer.WithCollection("agent_memory"),
-				storer.WithVectorSize(1536),
-			),
-		),
-		memorymanager.WithEmbedder(
-			openaiembedder.NewEmbedder(
-				embedder.WithApiKey(cfg.EmbedderKey),
-				embedder.WithModel(cfg.Embedder),
-			),
-		),
+	re := gomento.NewMemoryManager(
+		memorymanager.WithLocation(cfg.MemoryLocation),
 	)
+
+	// re := munin.NewMemoryManager(
+	// 	memorymanager.WithStorer(
+	// 		postgres.NewStorer(
+	// 			storer.WithLocation(cfg.MemoryLocation),
+	// 			storer.WithCollection("agent_memory"),
+	// 			storer.WithVectorSize(1536),
+	// 		),
+	// 	),
+	// 	memorymanager.WithEmbedder(
+	// 		openaiembedder.NewEmbedder(
+	// 			embedder.WithApiKey(cfg.EmbedderKey),
+	// 			embedder.WithModel(cfg.Embedder),
+	// 		),
+	// 	),
+	// )
 
 	// Create primary agent's model
 	primaryModel := openaigenerator.NewGenerator(
@@ -151,22 +150,22 @@ func main() {
 
 	fmt.Println("--- Agent Development Kit Demo ---")
 
-	// TODO: support spaces
-	// spaceId, err := a.CreateSpace(ctx, "agent-learning-space")
-	// if err != nil {
-	// 	log.Fatalf("❌ failed to create space: %v", err)
-	// }
-	// fmt.Printf("✅ Connected to Space: %s\n", spaceId)
+	// 1. Create space
+	spaceId, err := adk.CreateSpace(ctx, "agent-learning-space", cfg.Space)
+	if err != nil {
+		log.Fatalf("❌ failed to create space: %v", err)
+	}
+	fmt.Printf("✅ Connected to Space: %s\n", spaceId)
 
-	// 1. Start session
-	sessionId, flush, err := adk.NewSession(ctx, cfg.Session)
+	// 2. Start session
+	sessionId, err := adk.CreateSession(ctx, cfg.Session, spaceId)
 	if err != nil {
 		log.Fatalf("❌ failed to start session: %v", err)
 	}
-	defer flush(ctx)
+	defer adk.FlushSession(ctx, sessionId)
 	fmt.Printf("✅ Started Session: %s\n", sessionId)
 
-	// 2. Simulate Conversation
+	// 3. Simulate Conversation
 	prompts := []string{
 		"Summarize what I asked in our previous session.",
 		"I want to design an AI agent with memory. What’s the first step?",
@@ -178,7 +177,7 @@ func main() {
 
 	for _, prompt := range prompts {
 		start := time.Now()
-		reply, err := adk.Generate(ctx, "", sessionId, prompt)
+		reply, err := adk.Generate(ctx, sessionId, prompt)
 		duration := time.Since(start)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -187,6 +186,8 @@ func main() {
 		fmt.Printf("User: %s\nAgent: %s\n(%.2fs)\n\n", prompt, reply, duration.Seconds())
 	}
 	fmt.Println("✅ Populated conversation history.")
+
+	// 4. TODO: Override Session Space
 
 	select {
 	case err := <-errCh:
