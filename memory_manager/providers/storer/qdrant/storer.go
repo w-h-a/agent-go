@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,6 +24,8 @@ type qdrantStorer struct {
 }
 
 func (s *qdrantStorer) Store(ctx context.Context, spaceId string, sessionId string, content string, metadata map[string]any, vector []float32) error {
+	storer.SanitizeEdges(metadata)
+
 	id := uuid.New().String()
 
 	payload := map[string]any{
@@ -86,28 +89,92 @@ func (s *qdrantStorer) Search(ctx context.Context, spaceId string, vector []floa
 		return nil, err
 	}
 
-	results := make([]storer.Record, 0, len(rsp.Result))
+	records := make([]storer.Record, 0, len(rsp.Result))
 
 	for _, point := range rsp.Result {
-		payload := point.Payload
-
-		createdAt, _ := time.Parse(time.RFC3339Nano, getsafe.String(payload, "created_at"))
-
-		rec := storer.Record{
-			Id:        point.Id,
-			SessionId: getsafe.String(payload, "session_id"),
-			Content:   getsafe.String(payload, "content"),
-			Metadata:  getsafe.Metadata(payload, "metadata"),
-			Embedding: point.Vector,
-			Score:     float32(point.Score),
-			Space:     getsafe.String(payload, "space_id"),
-			CreatedAt: createdAt,
-		}
-
-		results = append(results, rec)
+		rec := s.mapPointToRecord(point)
+		records = append(records, rec)
 	}
 
-	return results, nil
+	return records, nil
+}
+
+func (s *qdrantStorer) SearchNeighborhood(ctx context.Context, seedIds []string, hops int, limit int) ([]storer.Record, error) {
+	if limit < 1 || len(seedIds) == 0 {
+		return nil, nil
+	}
+
+	visited := map[string]struct{}{}
+	var records []storer.Record
+
+	for range hops {
+		if len(seedIds) == 0 {
+			break
+		}
+
+		fetchIds := make([]string, 0, len(seedIds))
+		for _, id := range seedIds {
+			if _, seen := visited[id]; !seen {
+				fetchIds = append(fetchIds, id)
+				visited[id] = struct{}{}
+			}
+		}
+
+		if len(fetchIds) == 0 {
+			break
+		}
+
+		points, err := s.retrievePoints(ctx, fetchIds)
+		if err != nil {
+			return nil, err
+		}
+
+		next := []string{}
+		for _, p := range points {
+			rec := s.mapPointToRecord(p)
+			records = append(records, rec)
+			if len(records) >= limit {
+				return records, nil
+			}
+
+			if rec.Metadata != nil {
+				metadataCopy := make(map[string]any, len(rec.Metadata))
+				maps.Copy(metadataCopy, rec.Metadata)
+				edges := storer.SanitizeEdges(metadataCopy)
+				ids := make([]string, 0, len(edges))
+				for _, edge := range edges {
+					ids = append(ids, edge["target"])
+				}
+				next = append(next, ids...)
+			}
+		}
+
+		seedIds = next
+	}
+
+	return records, nil
+}
+
+func (s *qdrantStorer) retrievePoints(ctx context.Context, ids []string) ([]qdrantPointResult, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	req := map[string]any{
+		"ids":          ids,
+		"with_vector":  true,
+		"with_payload": true,
+	}
+
+	var rsp qdrantEnvelope[[]qdrantPointResult]
+
+	path := fmt.Sprintf("/collections/%s/points", url.PathEscape(s.options.Collection))
+
+	if err := s.do(ctx, http.MethodPost, path, req, &rsp); err != nil {
+		return nil, err
+	}
+
+	return rsp.Result, nil
 }
 
 func (s *qdrantStorer) do(ctx context.Context, method string, path string, req any, rsp any) error {
@@ -155,6 +222,25 @@ func (s *qdrantStorer) do(ctx context.Context, method string, path string, req a
 	}
 
 	return nil
+}
+
+func (s *qdrantStorer) mapPointToRecord(point qdrantPointResult) storer.Record {
+	payload := point.Payload
+
+	createdAt, _ := time.Parse(time.RFC3339Nano, getsafe.String(payload, "created_at"))
+
+	rec := storer.Record{
+		Id:        point.Id,
+		SessionId: getsafe.String(payload, "session_id"),
+		Content:   getsafe.String(payload, "content"),
+		Metadata:  getsafe.Metadata(payload, "metadata"),
+		Embedding: point.Vector,
+		Score:     float32(point.Score),
+		SpaceId:   getsafe.String(payload, "space_id"),
+		CreatedAt: createdAt,
+	}
+
+	return rec
 }
 
 func (s *qdrantStorer) configure() error {

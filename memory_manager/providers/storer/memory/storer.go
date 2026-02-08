@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -21,6 +22,8 @@ func (s *memoryStorer) Store(ctx context.Context, spaceId string, sessionId stri
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
+	storer.SanitizeEdges(metadata)
+
 	id := uuid.New().String()
 
 	now := time.Now().UTC()
@@ -34,7 +37,7 @@ func (s *memoryStorer) Store(ctx context.Context, spaceId string, sessionId stri
 		Content:   content,
 		Metadata:  metadata,
 		Embedding: cpy,
-		Space:     spaceId,
+		SpaceId:   spaceId,
 		CreatedAt: now,
 	}
 
@@ -44,7 +47,7 @@ func (s *memoryStorer) Store(ctx context.Context, spaceId string, sessionId stri
 }
 
 func (s *memoryStorer) Search(ctx context.Context, spaceId string, vector []float32, limit int) ([]storer.Record, error) {
-	if limit <= 0 {
+	if limit < 1 {
 		return nil, nil
 	}
 
@@ -54,7 +57,7 @@ func (s *memoryStorer) Search(ctx context.Context, spaceId string, vector []floa
 	candidates := make([]storer.Record, 0, len(s.records))
 
 	for _, rec := range s.records {
-		if rec.Space != spaceId {
+		if rec.SpaceId != spaceId {
 			continue
 		}
 		score := memorymanager.CosineSimilarity(vector, rec.Embedding)
@@ -71,6 +74,65 @@ func (s *memoryStorer) Search(ctx context.Context, spaceId string, vector []floa
 	}
 
 	return candidates, nil
+}
+
+func (s *memoryStorer) SearchNeighborhood(ctx context.Context, seedIds []string, hops int, limit int) ([]storer.Record, error) {
+	if limit < 1 || len(seedIds) == 0 {
+		return nil, nil
+	}
+
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	visited := map[string]struct{}{}
+	var records []storer.Record
+
+	for range hops {
+		if len(seedIds) == 0 {
+			break
+		}
+
+		fetchIds := make([]string, 0, len(seedIds))
+		for _, id := range seedIds {
+			if _, seen := visited[id]; !seen {
+				fetchIds = append(fetchIds, id)
+				visited[id] = struct{}{}
+			}
+		}
+
+		if len(fetchIds) == 0 {
+			break
+		}
+
+		batch := make([]storer.Record, 0, len(fetchIds))
+		for _, id := range fetchIds {
+			if rec, exists := s.records[id]; exists {
+				batch = append(batch, rec)
+			}
+		}
+
+		next := []string{}
+		for _, rec := range batch {
+			records = append(records, rec)
+			if len(records) >= limit {
+				return records, nil
+			}
+			if rec.Metadata != nil {
+				metadataCopy := make(map[string]any, len(rec.Metadata))
+				maps.Copy(metadataCopy, rec.Metadata)
+				edges := storer.SanitizeEdges(metadataCopy)
+				ids := make([]string, 0, len(edges))
+				for _, edge := range edges {
+					ids = append(ids, edge["target"])
+				}
+				next = append(next, ids...)
+			}
+		}
+
+		seedIds = next
+	}
+
+	return records, nil
 }
 
 func NewStorer(opts ...storer.Option) *memoryStorer {
