@@ -3,7 +3,6 @@ package space
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	memorymanager "github.com/w-h-a/agent/memory_manager"
@@ -15,13 +14,10 @@ type Service struct {
 	mtx    sync.RWMutex
 }
 
-func (s *Service) CreateSpace(ctx context.Context, name string, id string) (*Space, error) {
-	if len(strings.TrimSpace(id)) == 0 {
-		var err error
-		id, err = s.memory.CreateSpace(ctx, name)
-		if err != nil {
-			return nil, err
-		}
+func (s *Service) CreateSpace(ctx context.Context, name string) (*Space, error) {
+	id, err := s.memory.CreateSpace(ctx, name)
+	if err != nil {
+		return nil, err
 	}
 
 	s.mtx.Lock()

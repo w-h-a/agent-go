@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	memorymanager "github.com/w-h-a/agent/memory_manager"
@@ -15,17 +14,14 @@ type Service struct {
 	mtx      sync.RWMutex
 }
 
-func (s *Service) CreateSession(ctx context.Context, id string, spaceId string) (*Session, error) {
-	if len(strings.TrimSpace(id)) == 0 {
-		var err error
-		opts := []memorymanager.CreateSessionOption{}
-		if len(spaceId) > 0 {
-			opts = append(opts, memorymanager.WithSpaceId(spaceId))
-		}
-		id, err = s.memory.CreateSession(ctx, opts...)
-		if err != nil {
-			return nil, err
-		}
+func (s *Service) CreateSession(ctx context.Context, spaceId string) (*Session, error) {
+	opts := []memorymanager.CreateSessionOption{}
+	if len(spaceId) > 0 {
+		opts = append(opts, memorymanager.WithSpaceId(spaceId))
+	}
+	id, err := s.memory.CreateSession(ctx, opts...)
+	if err != nil {
+		return nil, err
 	}
 
 	s.mtx.Lock()

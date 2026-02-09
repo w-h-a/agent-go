@@ -153,14 +153,14 @@ func main() {
 	fmt.Println("--- Agent Development Kit Demo ---")
 
 	// 1. Create space
-	spaceId, err := adk.CreateSpace(ctx, "agent-learning-space", cfg.Space)
+	spaceId, err := adk.CreateSpace(ctx, "agent-learning-space")
 	if err != nil {
 		log.Fatalf("❌ failed to create space: %v", err)
 	}
 	fmt.Printf("✅ Connected to Space: %s\n", spaceId)
 
 	// 2. Start session
-	sessionId, err := adk.CreateSession(ctx, cfg.Session, spaceId)
+	sessionId, err := adk.CreateSession(ctx, spaceId)
 	if err != nil {
 		log.Fatalf("❌ failed to start session: %v", err)
 	}
