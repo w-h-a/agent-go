@@ -47,6 +47,7 @@ var (
 
 		// Agent config
 		Context      int    `help:"Number of conversation turns to send to the model" default:"6"`
+		Hops         int    `help:"Number of hops to search for graphically related memories" default:"1"`
 		SystemPrompt string `help:"System prompt for the agent" default:"You orchestrate tooling and specialists to help the user build AI agents."`
 
 		// Space config
@@ -144,6 +145,7 @@ func main() {
 		primaryModel,
 		allToolHandlers,
 		cfg.Context,
+		cfg.Hops,
 		cfg.SystemPrompt,
 	)
 	defer adk.Close()

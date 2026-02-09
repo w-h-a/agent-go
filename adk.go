@@ -83,6 +83,7 @@ func New(
 	generator generator.Generator,
 	toolHandlers []toolhandler.ToolHandler,
 	context int,
+	hops int,
 	systemPrompt string,
 ) *ADK {
 	agent := agent.New(
@@ -90,6 +91,7 @@ func New(
 		generator,
 		toolHandlers,
 		context,
+		hops,
 		systemPrompt,
 	)
 

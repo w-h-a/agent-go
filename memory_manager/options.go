@@ -153,8 +153,10 @@ func NewListShortTermOptions(opts ...ListShortTermOption) ListShortTermOptions {
 type SearchLongTermOption func(*SearchLongTermOptions)
 
 type SearchLongTermOptions struct {
-	Limit   int
-	Context context.Context
+	Limit               int
+	LinkedMemoriesLimit int
+	LinkedMemoriesHops  int
+	Context             context.Context
 }
 
 func WithSearchLongTermLimit(limit int) SearchLongTermOption {
@@ -163,10 +165,24 @@ func WithSearchLongTermLimit(limit int) SearchLongTermOption {
 	}
 }
 
+func WithSearchLongTermLinkedMemoriesLimit(limit int) SearchLongTermOption {
+	return func(o *SearchLongTermOptions) {
+		o.LinkedMemoriesLimit = limit
+	}
+}
+
+func WithSearchLongTermLinkedMemoriesHops(hops int) SearchLongTermOption {
+	return func(o *SearchLongTermOptions) {
+		o.LinkedMemoriesHops = hops
+	}
+}
+
 func NewSearchOptions(opts ...SearchLongTermOption) SearchLongTermOptions {
 	options := SearchLongTermOptions{
-		Limit:   5,
-		Context: context.Background(),
+		Limit:               5,
+		LinkedMemoriesLimit: 5,
+		LinkedMemoriesHops:  1,
+		Context:             context.Background(),
 	}
 	for _, opt := range opts {
 		opt(&options)

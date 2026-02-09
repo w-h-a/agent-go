@@ -19,11 +19,12 @@ const (
 )
 
 type Service struct {
-	memory       memorymanager.MemoryManager
-	generator    generator.Generator
-	catalog      *ToolCatalog
-	contextLimit int
-	systemPrompt string
+	memory             memorymanager.MemoryManager
+	generator          generator.Generator
+	catalog            *ToolCatalog
+	contextLimit       int
+	linkedMemoriesHops int
+	systemPrompt       string
 }
 
 func (s *Service) Respond(ctx context.Context, sessionId string, userInput string) (string, error) {
@@ -95,6 +96,8 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 		sessionId,
 		input,
 		memorymanager.WithSearchLongTermLimit(s.contextLimit),
+		memorymanager.WithSearchLongTermLinkedMemoriesLimit(s.contextLimit),
+		memorymanager.WithSearchLongTermLinkedMemoriesHops(s.linkedMemoriesHops),
 	)
 	if err != nil {
 		return "", fmt.Errorf("long-term error: %w", err)
@@ -149,8 +152,34 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 	if len(longTermMsgs) > 0 {
 		sb.WriteString("\nRelevant Memories:\n")
 		for i, msg := range longTermMsgs {
-			if len(msg.Parts) > 0 {
-				sb.WriteString(fmt.Sprintf("%d. [%s] %s\n", i+1, msg.Role, msg.Parts[0].Text))
+			if len(msg.Parts) == 0 {
+				continue
+			}
+
+			isLinked := false
+			var content strings.Builder
+
+			for _, p := range msg.Parts {
+				if !isLinked && p.Meta != nil {
+					if _, ok := p.Meta["_linked"]; ok {
+						isLinked = true
+					}
+				}
+
+				if p.Type == "text" && len(p.Text) > 0 {
+					if content.Len() > 0 {
+						content.WriteString(" ")
+					}
+					content.WriteString(p.Text)
+				}
+			}
+
+			if content.Len() > 0 {
+				prefix := ""
+				if isLinked {
+					prefix = "(Related Context)"
+				}
+				sb.WriteString(fmt.Sprintf("%d. %s[%s] %s\n", i+1, prefix, msg.Role, content.String()))
 			}
 		}
 	}
@@ -166,8 +195,23 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 		sb.WriteString("\nConversation History:\n")
 		for i := len(uniqueShortTerm) - 1; i >= 0; i-- {
 			msg := uniqueShortTerm[i]
-			if len(msg.Parts) > 0 {
-				sb.WriteString(fmt.Sprintf("[%s]: %s\n", msg.Role, msg.Parts[0].Text))
+			if len(msg.Parts) == 0 {
+				continue
+			}
+
+			var content strings.Builder
+
+			for _, p := range msg.Parts {
+				if p.Type == "text" && len(p.Text) > 0 {
+					if content.Len() > 0 {
+						content.WriteString(" ")
+					}
+					content.WriteString(p.Text)
+				}
+			}
+
+			if content.Len() > 0 {
+				sb.WriteString(fmt.Sprintf("[%s]: %s\n", msg.Role, content.String()))
 			}
 		}
 	}
@@ -227,6 +271,7 @@ func New(
 	generator generator.Generator,
 	toolHandlers []toolhandler.ToolHandler,
 	contextLimit int,
+	linkedMemoriesHops int,
 	systemPrompt string,
 ) *Service {
 	catalog := &ToolCatalog{
@@ -254,10 +299,11 @@ func New(
 	}
 
 	return &Service{
-		memory:       memory,
-		generator:    generator,
-		catalog:      catalog,
-		contextLimit: contextLimit,
-		systemPrompt: systemPrompt,
+		memory:             memory,
+		generator:          generator,
+		catalog:            catalog,
+		contextLimit:       contextLimit,
+		linkedMemoriesHops: linkedMemoriesHops,
+		systemPrompt:       systemPrompt,
 	}
 }
