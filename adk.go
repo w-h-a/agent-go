@@ -17,8 +17,8 @@ type ADK struct {
 	session *session.Service
 }
 
-func (a *ADK) CreateSpace(ctx context.Context, name string, id string) (string, error) {
-	space, err := a.space.CreateSpace(ctx, name, id)
+func (a *ADK) CreateSpace(ctx context.Context, name string) (string, error) {
+	space, err := a.space.CreateSpace(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -41,8 +41,8 @@ func (a *ADK) DeleteSpace(ctx context.Context, id string) {
 	a.space.DeleteSpace(ctx, id)
 }
 
-func (a *ADK) CreateSession(ctx context.Context, sessionId string, spaceId string) (string, error) {
-	session, err := a.session.CreateSession(ctx, sessionId, spaceId)
+func (a *ADK) CreateSession(ctx context.Context, spaceId string) (string, error) {
+	session, err := a.session.CreateSession(ctx, spaceId)
 	if err != nil {
 		return "", err
 	}
