@@ -3,6 +3,7 @@ package munin
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strings"
@@ -147,6 +148,9 @@ func (m *muninMemoryManager) FlushToLongTerm(ctx context.Context, sessionId stri
 		meta := map[string]any{
 			"source": msg.Role,
 		}
+		for _, p := range msg.Parts {
+			maps.Copy(meta, p.Meta)
+		}
 
 		if err := m.options.Storer.Store(ctx, spaceId, sessionId, content, meta, vec); err != nil {
 			return err
@@ -179,6 +183,40 @@ func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, sessionId strin
 	candidates, err := m.options.Storer.Search(ctx, spaceId, vec, options.Limit*4)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	seen := map[string]int{}
+	seedIds := make([]string, 0, len(candidates))
+
+	for i, rec := range candidates {
+		seen[rec.Id] = i
+		seedIds = append(seedIds, rec.Id)
+	}
+
+	neighbors, err := m.options.Storer.SearchNeighborhood(ctx, seedIds, options.LinkedMemoriesLimit, options.LinkedMemoriesLimit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, rec := range neighbors {
+		if i, exists := seen[rec.Id]; exists {
+			if candidates[i].Metadata == nil {
+				candidates[i].Metadata = map[string]any{}
+			}
+			candidates[i].Metadata["_linked"] = true
+			continue
+		}
+		if len(rec.Embedding) > 0 {
+			rec.Score = float32(memorymanager.CosineSimilarity(vec, rec.Embedding))
+		} else {
+			rec.Score = 0.5
+		}
+		if rec.Metadata == nil {
+			rec.Metadata = map[string]any{}
+			rec.Metadata["_linked"] = true
+		}
+		candidates = append(candidates, rec)
+		seen[rec.Id] = len(candidates) - 1
 	}
 
 	sim, rec := memorymanager.NormalizeWeights(m.options.Weights)
