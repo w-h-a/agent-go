@@ -22,6 +22,7 @@ type Service struct {
 	memory             memorymanager.MemoryManager
 	generator          generator.Generator
 	catalog            *ToolCatalog
+	maxTurns           int
 	contextLimit       int
 	linkedMemoriesHops int
 	systemPrompt       string
@@ -34,35 +35,39 @@ func (s *Service) Respond(ctx context.Context, sessionId string, userInput strin
 
 	s.addShortTerm(ctx, sessionId, "user", userInput, files, nil)
 
-	if handled, output, metadata, err := s.handleCommand(ctx, sessionId, userInput); handled {
-		extra := map[string]any{"source": "tool"}
+	for range s.maxTurns {
+		prompt, err := s.buildPrompt(ctx, sessionId, userInput)
 		if err != nil {
-			s.addShortTerm(ctx, sessionId, "assistant", fmt.Sprintf("tool error: %v", err), nil, extra)
 			return "", err
 		}
-		for k, v := range metadata {
-			if len(strings.TrimSpace(k)) == 0 {
-				continue
-			}
-			extra[k] = v
+
+		content, err := s.generator.Generate(ctx, prompt)
+		if err != nil {
+			return "", err
 		}
-		s.addShortTerm(ctx, sessionId, "assistant", output, nil, extra)
-		return output, nil
+
+		s.addShortTerm(ctx, sessionId, "assistant", content, nil, nil)
+
+		isTool, output, metadata, err := s.executeTool(ctx, sessionId, content)
+		if !isTool {
+			return content, nil
+		}
+		if err != nil {
+			s.addShortTerm(ctx, sessionId, "system", fmt.Sprintf("Tool execution failed: %v", err), nil, map[string]any{"source": "tool_error"})
+			continue
+		}
+
+		extra := map[string]any{"source": "tool"}
+		for k, v := range metadata {
+			if len(strings.TrimSpace(k)) > 0 {
+				extra[k] = v
+			}
+		}
+
+		s.addShortTerm(ctx, sessionId, "tool", output, nil, extra)
 	}
 
-	prompt, err := s.buildPrompt(ctx, sessionId, userInput)
-	if err != nil {
-		return "", err
-	}
-
-	result, err := s.generator.Generate(ctx, prompt)
-	if err != nil {
-		return "", err
-	}
-
-	s.addShortTerm(ctx, sessionId, "assistant", result, nil, nil)
-
-	return result, nil
+	return "", fmt.Errorf("agent exceeded max turns (%d) without final response", s.maxTurns)
 }
 
 func (s *Service) Flush(ctx context.Context, sessionId string) error {
@@ -164,7 +169,6 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 
 			isLinked := false
 			var content strings.Builder
-
 			for _, p := range msg.Parts {
 				if !isLinked && p.Meta != nil {
 					if _, ok := p.Meta["_linked"]; ok {
@@ -206,7 +210,6 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 			}
 
 			var content strings.Builder
-
 			for _, p := range msg.Parts {
 				if p.Type == "text" && len(p.Text) > 0 {
 					if content.Len() > 0 {
@@ -229,7 +232,7 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 	return sb.String(), nil
 }
 
-func (s *Service) handleCommand(ctx context.Context, sessionId string, input string) (bool, string, map[string]any, error) {
+func (s *Service) executeTool(ctx context.Context, sessionId string, input string) (bool, string, map[string]any, error) {
 	trimmed := strings.TrimSpace(input)
 	lower := strings.ToLower(trimmed)
 
@@ -267,15 +270,14 @@ func (s *Service) handleCommand(ctx context.Context, sessionId string, input str
 		metadata[k] = v
 	}
 
-	s.addShortTerm(ctx, sessionId, "tool", fmt.Sprintf("%s => %s", spec.Name, strings.TrimSpace(result.Content)), nil, metadata)
-
-	return true, result.Content, metadata, nil
+	return true, fmt.Sprintf("%s => %s", spec.Name, strings.TrimSpace(result.Content)), metadata, nil
 }
 
 func New(
 	memory memorymanager.MemoryManager,
 	generator generator.Generator,
 	toolHandlers []toolhandler.ToolHandler,
+	maxTurns int,
 	contextLimit int,
 	linkedMemoriesHops int,
 	systemPrompt string,
@@ -308,6 +310,7 @@ func New(
 		memory:             memory,
 		generator:          generator,
 		catalog:            catalog,
+		maxTurns:           maxTurns,
 		contextLimit:       contextLimit,
 		linkedMemoriesHops: linkedMemoriesHops,
 		systemPrompt:       systemPrompt,

@@ -35,15 +35,17 @@ var (
 		ToolProviderClientAddrs []string `help:"List of addresses of servers with exposed tool handlers" default:"http://localhost:8080/tools"`
 
 		// Agent config
+		MaxTurns     int    `help:"Number of turns the agent is allowed to take per user prompt" default:"5"`
 		Context      int    `help:"Number of conversation turns to send to the model" default:"6"`
 		Hops         int    `help:"Number of hops to search for graphically related memories" default:"1"`
 		SystemPrompt string `help:"System prompt for the agent" default:"You orchestrate a helpful assistant team."`
 
 		// Space config
-		Space string `help:"Option space identifier" default:""`
+		SpaceName string `help:"Optional space name" default:""`
+		SpaceId   string `help:"Optional space identifier" default:""`
 
 		// Session config
-		Session string `help:"Optional fixed session identifier" default:""`
+		SessionId string `help:"Optional fixed session identifier" default:""`
 	}
 )
 
@@ -75,6 +77,7 @@ func main() {
 		re,
 		primaryModel,
 		allToolHandlers,
+		cfg.MaxTurns,
 		cfg.Context,
 		cfg.Hops,
 		cfg.SystemPrompt,
@@ -83,10 +86,21 @@ func main() {
 
 	fmt.Println("ADK quickstart. Type a message and press enter.")
 
-	sessionId := cfg.Session
+	spaceName := cfg.SpaceName
+	spaceId := cfg.SpaceId
+	if len(spaceId) == 0 && len(spaceName) > 0 {
+		var err error
+		spaceId, err = adk.CreateSpace(ctx, cfg.SpaceName)
+		if err != nil {
+			log.Fatalf("❌ failed to create space: %v", err)
+		}
+		fmt.Printf("✅ Connected to Space: %s\n", spaceId)
+	}
+
+	sessionId := cfg.SessionId
 	if len(sessionId) == 0 {
 		var err error
-		sessionId, err = adk.CreateSession(ctx, cfg.Space)
+		sessionId, err = adk.CreateSession(ctx, spaceId)
 		if err != nil {
 			log.Fatalf("❌ failed to start session: %v", err)
 		}

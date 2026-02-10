@@ -46,6 +46,7 @@ var (
 		ToolProviderClientAddrs []string `help:"List of addresses of servers with exposed tool handlers" default:"http://localhost:8080/tools"`
 
 		// Agent config
+		MaxTurns     int    `help:"Number of turns the agent is allowed to take per user prompt" default:"5"`
 		Context      int    `help:"Number of conversation turns to send to the model" default:"6"`
 		Hops         int    `help:"Number of hops to search for graphically related memories" default:"1"`
 		SystemPrompt string `help:"System prompt for the agent" default:"You orchestrate tooling and specialists to help the user build AI agents."`
@@ -144,6 +145,7 @@ func main() {
 		re,
 		primaryModel,
 		allToolHandlers,
+		cfg.MaxTurns,
 		cfg.Context,
 		cfg.Hops,
 		cfg.SystemPrompt,
