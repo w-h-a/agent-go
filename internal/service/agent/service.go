@@ -27,17 +27,17 @@ type Service struct {
 	systemPrompt       string
 }
 
-func (s *Service) Respond(ctx context.Context, sessionId string, userInput string) (string, error) {
+func (s *Service) Respond(ctx context.Context, sessionId string, userInput string, files map[string]memorymanager.File) (string, error) {
 	if len(strings.TrimSpace(userInput)) == 0 {
 		return "", errors.New("user input is required")
 	}
 
-	s.addShortTerm(ctx, sessionId, "user", userInput, nil)
+	s.addShortTerm(ctx, sessionId, "user", userInput, files, nil)
 
 	if handled, output, metadata, err := s.handleCommand(ctx, sessionId, userInput); handled {
 		extra := map[string]any{"source": "tool"}
 		if err != nil {
-			s.addShortTerm(ctx, sessionId, "assistant", fmt.Sprintf("tool error: %v", err), extra)
+			s.addShortTerm(ctx, sessionId, "assistant", fmt.Sprintf("tool error: %v", err), nil, extra)
 			return "", err
 		}
 		for k, v := range metadata {
@@ -46,7 +46,7 @@ func (s *Service) Respond(ctx context.Context, sessionId string, userInput strin
 			}
 			extra[k] = v
 		}
-		s.addShortTerm(ctx, sessionId, "assistant", output, extra)
+		s.addShortTerm(ctx, sessionId, "assistant", output, nil, extra)
 		return output, nil
 	}
 
@@ -60,7 +60,7 @@ func (s *Service) Respond(ctx context.Context, sessionId string, userInput strin
 		return "", err
 	}
 
-	s.addShortTerm(ctx, sessionId, "assistant", result, nil)
+	s.addShortTerm(ctx, sessionId, "assistant", result, nil, nil)
 
 	return result, nil
 }
@@ -69,14 +69,20 @@ func (s *Service) Flush(ctx context.Context, sessionId string) error {
 	return s.memory.FlushToLongTerm(ctx, sessionId)
 }
 
-func (s *Service) addShortTerm(ctx context.Context, sessionId string, role string, input string, meta map[string]any) {
+func (s *Service) addShortTerm(ctx context.Context, sessionId string, role string, input string, files map[string]memorymanager.File, meta map[string]any) {
 	parts := []memorymanager.Part{
 		{Type: "text", Text: input, Meta: meta},
 	}
 
-	// TODO: files
+	for k := range files {
+		parts = append(parts, memorymanager.Part{
+			Type:      "file",
+			FileField: k,
+			Meta:      meta,
+		})
+	}
 
-	s.memory.AddShortTerm(ctx, sessionId, role, parts)
+	s.memory.AddShortTerm(ctx, sessionId, role, parts, memorymanager.WithFiles(files))
 }
 
 func (s *Service) buildPrompt(ctx context.Context, sessionId string, input string) (string, error) {
@@ -261,7 +267,7 @@ func (s *Service) handleCommand(ctx context.Context, sessionId string, input str
 		metadata[k] = v
 	}
 
-	s.addShortTerm(ctx, sessionId, "tool", fmt.Sprintf("%s => %s", spec.Name, strings.TrimSpace(result.Content)), metadata)
+	s.addShortTerm(ctx, sessionId, "tool", fmt.Sprintf("%s => %s", spec.Name, strings.TrimSpace(result.Content)), nil, metadata)
 
 	return true, result.Content, metadata, nil
 }

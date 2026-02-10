@@ -17,9 +17,7 @@ Coming soon!
 Agent acts as the coordinator between the user, the model, memory, and tools.
 
 ```mermaid
-graph TD
-    User[User Input] --> UAgent[Your Agent]
-    
+graph TD    
     subgraph Agent [Agent]
         Orchestrator[Orchestrator]
     end
@@ -29,8 +27,8 @@ graph TD
     end
     
     subgraph State [Memory Layer]
-        ShortTerm[Session Memory]
-        LongTerm[Vector Store]
+        ShortTerm[Short-term Memory]
+        LongTerm[Long-term Memory]
     end
     
     subgraph Provider [Tool Layer]
@@ -38,7 +36,7 @@ graph TD
         UTCP[UTCP Client]
     end
     
-    UAgent --> Orchestrator
+    User --> Orchestrator
     Orchestrator -->|Store| State
     Orchestrator -->|Plan| Generator
     Orchestrator -->|Execute| Provider

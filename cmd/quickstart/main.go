@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/alecthomas/kong"
@@ -14,18 +15,14 @@ import (
 	"github.com/w-h-a/agent/generator"
 	openaigenerator "github.com/w-h-a/agent/generator/openai"
 	memorymanager "github.com/w-h-a/agent/memory_manager"
-	"github.com/w-h-a/agent/memory_manager/munin"
-	"github.com/w-h-a/agent/memory_manager/providers/embedder"
-	openaiembedder "github.com/w-h-a/agent/memory_manager/providers/embedder/openai"
-	"github.com/w-h-a/agent/memory_manager/providers/storer"
-	"github.com/w-h-a/agent/memory_manager/providers/storer/qdrant"
+	"github.com/w-h-a/agent/memory_manager/gomento"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
 )
 
 var (
 	cfg struct {
 		// Memory config
-		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:6333"`
+		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
 		Window         int    `help:"Short-term memory window size per session" default:"8"`
 		EmbedderKey    string `help:"API Key for the embedder" default:""`
 		Embedder       string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
@@ -56,20 +53,8 @@ func main() {
 	ctx := context.Background()
 
 	// Create memory manager
-	re := munin.NewMemoryManager(
-		memorymanager.WithStorer(
-			qdrant.NewStorer(
-				storer.WithLocation(cfg.MemoryLocation),
-				storer.WithCollection("agent_memory"),
-				storer.WithVectorSize(1536),
-			),
-		),
-		memorymanager.WithEmbedder(
-			openaiembedder.NewEmbedder(
-				embedder.WithApiKey(cfg.EmbedderKey),
-				embedder.WithModel(cfg.Embedder),
-			),
-		),
+	re := gomento.NewMemoryManager(
+		memorymanager.WithLocation(cfg.MemoryLocation),
 	)
 
 	// Create primary agent's model
@@ -124,12 +109,41 @@ func main() {
 			return
 		}
 
-		rsp, err := adk.Generate(ctx, sessionId, input)
+		var files map[string]memorymanager.File
+		if strings.HasPrefix(input, "/file ") {
+			parts := strings.SplitN(input, " ", 3)
+			if len(parts) >= 2 {
+				path := parts[1]
+				f, err := os.Open(path)
+				if err != nil {
+					fmt.Printf("❌ Failed to open file: %v\n", err)
+					continue
+				}
+				fileName := filepath.Base(path)
+				files = map[string]memorymanager.File{
+					fileName: {Name: fileName, Reader: f},
+				}
+				if len(parts) == 3 {
+					input = strings.TrimSpace(parts[2])
+				} else {
+					input = fmt.Sprintf("Uploaded file: %s", fileName)
+				}
+				fmt.Printf("📎 Attaching %s...\n", fileName)
+			}
+		}
+
+		rsp, err := adk.Generate(ctx, sessionId, input, files)
 		if err != nil {
 			fmt.Println("Error generating response:", err)
 			continue
 		}
 		fmt.Printf("%s\n", rsp)
 		fmt.Println("---")
+
+		for _, file := range files {
+			if closer, ok := file.Reader.(interface{ Close() error }); ok {
+				closer.Close()
+			}
+		}
 	}
 }
