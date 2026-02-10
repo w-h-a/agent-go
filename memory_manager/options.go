@@ -107,11 +107,11 @@ func NewCreateSessionOptions(opts ...CreateSessionOption) CreateSessionOptions {
 type AddToShortTermOption func(*AddToShortTermOptions)
 
 type AddToShortTermOptions struct {
-	Files   map[string]File
+	Files   map[string]InputFile
 	Context context.Context
 }
 
-func WithFiles(files map[string]File) AddToShortTermOption {
+func WithFiles(files map[string]InputFile) AddToShortTermOption {
 	return func(o *AddToShortTermOptions) {
 		o.Files = files
 	}
@@ -119,7 +119,7 @@ func WithFiles(files map[string]File) AddToShortTermOption {
 
 func NewAddToShortTermOptions(opts ...AddToShortTermOption) AddToShortTermOptions {
 	options := AddToShortTermOptions{
-		Files:   map[string]File{},
+		Files:   map[string]InputFile{},
 		Context: context.Background(),
 	}
 	for _, opt := range opts {

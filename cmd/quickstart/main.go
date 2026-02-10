@@ -41,7 +41,7 @@ var (
 		SystemPrompt string `help:"System prompt for the agent" default:"You orchestrate a helpful assistant team."`
 
 		// Space config
-		SpaceName string `help:"Optional space name" default:""`
+		SpaceName string `help:"Optional space name" default:"dark-mode"`
 		SpaceId   string `help:"Optional space identifier" default:""`
 
 		// Session config
@@ -123,7 +123,7 @@ func main() {
 			return
 		}
 
-		var files map[string]memorymanager.File
+		var files map[string]memorymanager.InputFile
 		if strings.HasPrefix(input, "/file ") {
 			parts := strings.SplitN(input, " ", 3)
 			if len(parts) >= 2 {
@@ -134,7 +134,7 @@ func main() {
 					continue
 				}
 				fileName := filepath.Base(path)
-				files = map[string]memorymanager.File{
+				files = map[string]memorymanager.InputFile{
 					fileName: {Name: fileName, Reader: f},
 				}
 				if len(parts) == 3 {
