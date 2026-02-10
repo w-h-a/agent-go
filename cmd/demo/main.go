@@ -179,7 +179,7 @@ func main() {
 
 	for _, prompt := range prompts {
 		start := time.Now()
-		reply, err := adk.Generate(ctx, sessionId, prompt)
+		reply, err := adk.Generate(ctx, sessionId, prompt, nil)
 		duration := time.Since(start)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)

@@ -119,6 +119,7 @@ func WithFiles(files map[string]File) AddToShortTermOption {
 
 func NewAddToShortTermOptions(opts ...AddToShortTermOption) AddToShortTermOptions {
 	options := AddToShortTermOptions{
+		Files:   map[string]File{},
 		Context: context.Background(),
 	}
 	for _, opt := range opts {
