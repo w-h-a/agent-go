@@ -160,7 +160,7 @@ func (m *muninMemoryManager) FlushToLongTerm(ctx context.Context, sessionId stri
 	return nil
 }
 
-func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, sessionId string, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.Skill, error) {
+func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, sessionId string, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.MatchingChunk, []memorymanager.Skill, error) {
 	options := memorymanager.NewSearchOptions(opts...)
 
 	m.mtx.RLock()
@@ -172,17 +172,17 @@ func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, sessionId strin
 	m.mtx.RUnlock()
 
 	if !exists {
-		return nil, nil, fmt.Errorf("session %s not found", sessionId)
+		return nil, nil, nil, fmt.Errorf("session %s not found", sessionId)
 	}
 
 	vec, err := m.options.Embedder.Embed(ctx, query)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	candidates, err := m.options.Storer.Search(ctx, spaceId, vec, options.Limit*4)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	seen := map[string]int{}
@@ -195,7 +195,7 @@ func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, sessionId strin
 
 	neighbors, err := m.options.Storer.SearchNeighborhood(ctx, seedIds, options.LinkedMemoriesLimit, options.LinkedMemoriesLimit)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	for _, rec := range neighbors {
@@ -262,7 +262,7 @@ func (m *muninMemoryManager) SearchLongTerm(ctx context.Context, sessionId strin
 		messages = append(messages, msg)
 	}
 
-	return messages, nil, nil
+	return messages, nil, nil, nil
 }
 
 func NewMemoryManager(opts ...memorymanager.Option) memorymanager.MemoryManager {

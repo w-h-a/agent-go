@@ -65,7 +65,7 @@ func (a *ADK) DeleteSession(ctx context.Context, id string) {
 	a.session.DeleteSession(ctx, id)
 }
 
-func (a *ADK) Generate(ctx context.Context, sessionId string, userInput string, files map[string]memorymanager.File) (string, error) {
+func (a *ADK) Generate(ctx context.Context, sessionId string, userInput string, files map[string]memorymanager.InputFile) (string, error) {
 	return a.agent.Respond(ctx, sessionId, userInput, files)
 }
 

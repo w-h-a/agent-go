@@ -28,7 +28,7 @@ type Service struct {
 	systemPrompt       string
 }
 
-func (s *Service) Respond(ctx context.Context, sessionId string, userInput string, files map[string]memorymanager.File) (string, error) {
+func (s *Service) Respond(ctx context.Context, sessionId string, userInput string, files map[string]memorymanager.InputFile) (string, error) {
 	if len(strings.TrimSpace(userInput)) == 0 {
 		return "", errors.New("user input is required")
 	}
@@ -74,7 +74,7 @@ func (s *Service) Flush(ctx context.Context, sessionId string) error {
 	return s.memory.FlushToLongTerm(ctx, sessionId)
 }
 
-func (s *Service) addShortTerm(ctx context.Context, sessionId string, role string, input string, files map[string]memorymanager.File, meta map[string]any) {
+func (s *Service) addShortTerm(ctx context.Context, sessionId string, role string, input string, files map[string]memorymanager.InputFile, meta map[string]any) {
 	parts := []memorymanager.Part{
 		{Type: "text", Text: input, Meta: meta},
 	}
@@ -102,7 +102,7 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 	}
 
 	// 2. Fetch Long-Term (Messages + Skills)
-	longTermMsgs, skills, err := s.memory.SearchLongTerm(
+	longTermMsgs, chunks, skills, err := s.memory.SearchLongTerm(
 		ctx,
 		sessionId,
 		input,
@@ -157,6 +157,13 @@ func (s *Service) buildPrompt(ctx context.Context, sessionId string, input strin
 		sb.WriteString("\nRelevant Skills (SOPs):\n")
 		for i, skill := range skills {
 			sb.WriteString(fmt.Sprintf("%d. TRIGGER: %s\n  SOP: %s\n", i+1, skill.Trigger, skill.SOP))
+		}
+	}
+
+	if len(chunks) > 0 {
+		sb.WriteString("\nRelevant Chunks of Files:\n")
+		for i, chunk := range chunks {
+			sb.WriteString(fmt.Sprintf("%d. [File: %s] %s\n", i+1, chunk.File.Filename, chunk.Chunk.Content))
 		}
 	}
 
