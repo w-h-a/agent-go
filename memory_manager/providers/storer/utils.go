@@ -29,18 +29,23 @@ func ValidateEdges(raw any) []map[string]string {
 	seen := map[string]struct{}{}
 
 	for _, edge := range candidates {
-		if len(strings.TrimSpace(edge["target"])) == 0 || len(strings.TrimSpace(edge["type"])) == 0 {
+		target := SanitizeTarget(edge["target"])
+		t := SanitizeType(edge["type"])
+		if len(target) == 0 || len(t) == 0 {
 			continue
 		}
 
-		key := edge["target"] + "|" + edge["type"]
+		key := target + "|" + t
 		if _, exists := seen[key]; exists {
 			continue
 		}
 
 		seen[key] = struct{}{}
 
-		valid = append(valid, edge)
+		valid = append(valid, map[string]string{
+			"target": target,
+			"type":   t,
+		})
 	}
 
 	return valid
@@ -62,4 +67,16 @@ func ExtractEdges(raw any) []map[string]string {
 	}
 
 	return edges
+}
+
+func SanitizeTarget(t string) string {
+	return strings.TrimSpace(t)
+}
+
+func SanitizeType(t string) string {
+	t = strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(t), " ", "_"))
+	if len(t) == 0 {
+		return "RELATED"
+	}
+	return t
 }

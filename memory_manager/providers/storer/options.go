@@ -5,12 +5,13 @@ import "context"
 type Option func(*Options)
 
 type Options struct {
-	Location   string
-	ApiKey     string
-	Collection string
-	VectorSize uint64
-	Distance   string
-	Context    context.Context
+	Location    string
+	ApiKey      string
+	Collection  string
+	VectorIndex string
+	VectorSize  uint64
+	Distance    string
+	Context     context.Context
 }
 
 func WithLocation(loc string) Option {
@@ -28,6 +29,12 @@ func WithApiKey(key string) Option {
 func WithCollection(coll string) Option {
 	return func(o *Options) {
 		o.Collection = coll
+	}
+}
+
+func WithVectorIndex(index string) Option {
+	return func(o *Options) {
+		o.VectorIndex = index
 	}
 }
 

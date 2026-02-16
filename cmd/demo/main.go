@@ -16,11 +16,14 @@ import (
 	"github.com/w-h-a/agent"
 	"github.com/w-h-a/agent/cmd/demo/handler/tool"
 	"github.com/w-h-a/agent/cmd/demo/tool/calculate"
-	"github.com/w-h-a/agent/cmd/demo/tool/research"
 	"github.com/w-h-a/agent/generator"
 	openaigenerator "github.com/w-h-a/agent/generator/openai"
 	memorymanager "github.com/w-h-a/agent/memory_manager"
-	"github.com/w-h-a/agent/memory_manager/gomento"
+	"github.com/w-h-a/agent/memory_manager/munin"
+	"github.com/w-h-a/agent/memory_manager/providers/embedder"
+	openaiembedder "github.com/w-h-a/agent/memory_manager/providers/embedder/openai"
+	"github.com/w-h-a/agent/memory_manager/providers/storer"
+	"github.com/w-h-a/agent/memory_manager/providers/storer/neo4j"
 	"github.com/w-h-a/agent/server"
 	httpserver "github.com/w-h-a/agent/server/http"
 	toolhandler "github.com/w-h-a/agent/tool_handler"
@@ -31,12 +34,13 @@ import (
 var (
 	cfg struct {
 		// Memory config
-		MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
+		// MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:4000"`
 		// MemoryLocation string `help:"Address of memory store for memory manager" default:"postgres://user:password@localhost:5432/memory?sslmode=disable"`
 		// MemoryLocation string `help:"Address of memory store for memory manager" default:"http://localhost:6333"`
-		Window      int    `help:"Short-term memory window size per session" default:"8"`
-		EmbedderKey string `help:"API Key for the embedder" default:""`
-		Embedder    string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
+		MemoryLocation string `help:"Address of memory store for memory manager" default:"bolt://localhost:7687"`
+		Window         int    `help:"Short-term memory window size per session" default:"8"`
+		EmbedderKey    string `help:"API Key for the embedder" default:""`
+		Embedder       string `help:"Model identifier for embedder" default:"text-embedding-3-small"`
 
 		// Generator config
 		GeneratorKey string `help:"API Key for the generator" default:""`
@@ -82,25 +86,26 @@ func main() {
 	time.Sleep(200 * time.Millisecond)
 
 	// Create memory manager
-	re := gomento.NewMemoryManager(
-		memorymanager.WithLocation(cfg.MemoryLocation),
-	)
-
-	// re := munin.NewMemoryManager(
-	// 	memorymanager.WithStorer(
-	// 		postgres.NewStorer(
-	// 			storer.WithLocation(cfg.MemoryLocation),
-	// 			storer.WithCollection("agent_memory"),
-	// 			storer.WithVectorSize(1536),
-	// 		),
-	// 	),
-	// 	memorymanager.WithEmbedder(
-	// 		openaiembedder.NewEmbedder(
-	// 			embedder.WithApiKey(cfg.EmbedderKey),
-	// 			embedder.WithModel(cfg.Embedder),
-	// 		),
-	// 	),
+	// re := gomento.NewMemoryManager(
+	// 	memorymanager.WithLocation(cfg.MemoryLocation),
 	// )
+
+	re := munin.NewMemoryManager(
+		memorymanager.WithStorer(
+			neo4j.NewStorer(
+				storer.WithLocation(cfg.MemoryLocation),
+				storer.WithCollection("neo4j"),
+				storer.WithVectorIndex("agent_memory_index"),
+				storer.WithVectorSize(1536),
+			),
+		),
+		memorymanager.WithEmbedder(
+			openaiembedder.NewEmbedder(
+				embedder.WithApiKey(cfg.EmbedderKey),
+				embedder.WithModel(cfg.Embedder),
+			),
+		),
+	)
 
 	// Create primary agent's model
 	primaryModel := openaigenerator.NewGenerator(
@@ -124,18 +129,8 @@ func main() {
 	// Create custom tooling
 	calculate := calculate.NewToolHandler()
 
-	researchModel := openaigenerator.NewGenerator(
-		generator.WithApiKey(cfg.GeneratorKey),
-		generator.WithModel(cfg.Generator),
-		generator.WithPromptPrefix("Researcher response:"),
-	)
-	research := research.NewToolHandler(
-		toolhandler.WithGenerator(researchModel),
-	)
-
 	allToolHandlers := []toolhandler.ToolHandler{
 		calculate,
-		research,
 	}
 
 	allToolHandlers = append(allToolHandlers, dynamicToolHandlers...)
@@ -174,7 +169,6 @@ func main() {
 		"Summarize what I asked in our previous session.",
 		"I want to design an AI agent with memory. What’s the first step?",
 		`tool:calculate {"expression":"21 / 3"}`,
-		`tool:research {"query":"Briefly explain pgvector and its benefits for retrieval."}`,
 		`tool:localhost.echo {"message":"Hello from the Dynamic UTCP Server!"}`,
 		`tool:localhost.timestamp {"format":"rfc3339"}`,
 	}

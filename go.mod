@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/lib/pq v1.10.9
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/universal-tool-calling-protocol/go-utcp v1.10.9
