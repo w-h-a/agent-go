@@ -92,7 +92,7 @@ func (s *qdrantStorer) Search(ctx context.Context, spaceId string, vector []floa
 	records := make([]storer.Record, 0, len(rsp.Result))
 
 	for _, point := range rsp.Result {
-		rec := s.mapPointToRecord(point)
+		rec := s.mapToStorerRecord(point)
 		records = append(records, rec)
 	}
 
@@ -131,7 +131,7 @@ func (s *qdrantStorer) SearchNeighborhood(ctx context.Context, seedIds []string,
 
 		next := []string{}
 		for _, p := range points {
-			rec := s.mapPointToRecord(p)
+			rec := s.mapToStorerRecord(p)
 			records = append(records, rec)
 			if len(records) >= limit {
 				return records, nil
@@ -224,7 +224,7 @@ func (s *qdrantStorer) do(ctx context.Context, method string, path string, req a
 	return nil
 }
 
-func (s *qdrantStorer) mapPointToRecord(point qdrantPointResult) storer.Record {
+func (s *qdrantStorer) mapToStorerRecord(point qdrantPointResult) storer.Record {
 	payload := point.Payload
 
 	createdAt, _ := time.Parse(time.RFC3339Nano, getsafe.String(payload, "created_at"))
@@ -243,8 +243,8 @@ func (s *qdrantStorer) mapPointToRecord(point qdrantPointResult) storer.Record {
 	return rec
 }
 
-func (s *qdrantStorer) configure() error {
-	exists, err := s.collectionExists()
+func (s *qdrantStorer) configure(ctx context.Context) error {
+	exists, err := s.collectionExists(ctx)
 	if err != nil {
 		return err
 	}
@@ -253,15 +253,15 @@ func (s *qdrantStorer) configure() error {
 		return nil
 	}
 
-	return s.createCollection()
+	return s.createCollection(ctx)
 }
 
-func (s *qdrantStorer) collectionExists() (bool, error) {
+func (s *qdrantStorer) collectionExists(ctx context.Context) (bool, error) {
 	path := fmt.Sprintf("/collections/%s", url.PathEscape(s.options.Collection))
 
 	var rsp qdrantEnvelope[json.RawMessage]
 
-	err := s.do(context.Background(), http.MethodGet, path, nil, &rsp)
+	err := s.do(ctx, http.MethodGet, path, nil, &rsp)
 	if err != nil {
 		if strings.Contains(err.Error(), "404") {
 			return false, nil
@@ -272,7 +272,7 @@ func (s *qdrantStorer) collectionExists() (bool, error) {
 	return strings.EqualFold(rsp.Status.State, "ok"), nil
 }
 
-func (s *qdrantStorer) createCollection() error {
+func (s *qdrantStorer) createCollection(ctx context.Context) error {
 	distance := s.options.Distance
 	if len(distance) == 0 {
 		distance = "Cosine"
@@ -288,7 +288,7 @@ func (s *qdrantStorer) createCollection() error {
 
 	var rsp qdrantEnvelope[json.RawMessage]
 
-	if err := s.do(context.Background(), http.MethodPut, path, req, &rsp); err != nil {
+	if err := s.do(ctx, http.MethodPut, path, req, &rsp); err != nil {
 		return err
 	}
 
@@ -317,7 +317,9 @@ func NewStorer(opts ...storer.Option) storer.Storer {
 		client:  client,
 	}
 
-	if err := s.configure(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.configure(ctx); err != nil {
 		panic(err)
 	}
 

@@ -2,21 +2,12 @@ package toolhandler
 
 import (
 	"context"
-
-	"github.com/w-h-a/agent/generator"
 )
 
 type Option func(*Options)
 
 type Options struct {
-	Generator generator.Generator
-	Context   context.Context
-}
-
-func WithGenerator(gen generator.Generator) Option {
-	return func(opts *Options) {
-		opts.Generator = gen
-	}
+	Context context.Context
 }
 
 func NewOptions(opts ...Option) Options {
