@@ -154,24 +154,6 @@ func (m *gomentoMemoryManager) AddShortTerm(ctx context.Context, sessionId strin
 		return fmt.Errorf("status: %s", msgRsp.Status)
 	}
 
-	extractReq, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		fmt.Sprintf("%s/api/v1/sessions/%s/extract", m.options.Location, sessionId),
-		nil,
-	)
-	if err != nil {
-		// TODO: trace/log but don't fail the whole operation here
-		return nil
-	}
-
-	extractRsp, err := m.client.Do(extractReq)
-	if err != nil {
-		// TODO: trace/log but don't fail the whole operation here
-		return nil
-	}
-	defer extractRsp.Body.Close()
-
 	return nil
 }
 
