@@ -244,8 +244,7 @@ func (m *gomentoMemoryManager) FlushToLongTerm(ctx context.Context, sessionId st
 }
 
 func (m *gomentoMemoryManager) SearchLongTerm(ctx context.Context, sessionId string, query string, opts ...memorymanager.SearchLongTermOption) ([]memorymanager.Message, []memorymanager.MatchingChunk, []memorymanager.Skill, error) {
-	// TODO: gomento should account for limit
-	// options := memorymanager.NewSearchOptions(opts...)
+	options := memorymanager.NewSearchOptions(opts...)
 
 	m.mtx.Lock()
 	spaceId, exists := m.sessionSpaces[sessionId]
@@ -264,17 +263,17 @@ func (m *gomentoMemoryManager) SearchLongTerm(ctx context.Context, sessionId str
 		return []memorymanager.Message{}, []memorymanager.MatchingChunk{}, []memorymanager.Skill{}, nil
 	}
 
-	msgs, err := m.searchSpaceForMessages(ctx, spaceId, query)
+	msgs, err := m.searchSpaceForMessages(ctx, spaceId, query, options.Limit)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	chunks, err := m.searchSpaceForChunks(ctx, spaceId, query)
+	chunks, err := m.searchSpaceForChunks(ctx, spaceId, query, options.Limit)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	skills, err := m.searchSpaceForSkills(ctx, spaceId, query)
+	skills, err := m.searchSpaceForSkills(ctx, spaceId, query, options.Limit)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -315,9 +314,10 @@ func (m *gomentoMemoryManager) fetchSessionSpaceId(ctx context.Context, sessionI
 	return res.SpaceId, nil
 }
 
-func (m *gomentoMemoryManager) searchSpaceForMessages(ctx context.Context, spaceId string, query string) ([]memorymanager.Message, error) {
+func (m *gomentoMemoryManager) searchSpaceForMessages(ctx context.Context, spaceId string, query string, limit int) ([]memorymanager.Message, error) {
 	params := url.Values{}
 	params.Add("q", query)
+	params.Add("limit", fmt.Sprintf("%d", limit))
 
 	msgReq, err := http.NewRequestWithContext(
 		ctx,
@@ -348,9 +348,10 @@ func (m *gomentoMemoryManager) searchSpaceForMessages(ctx context.Context, space
 	return msgRes, nil
 }
 
-func (m *gomentoMemoryManager) searchSpaceForChunks(ctx context.Context, spaceId string, query string) ([]memorymanager.MatchingChunk, error) {
+func (m *gomentoMemoryManager) searchSpaceForChunks(ctx context.Context, spaceId string, query string, limit int) ([]memorymanager.MatchingChunk, error) {
 	params := url.Values{}
 	params.Add("q", query)
+	params.Add("limit", fmt.Sprintf("%d", limit))
 
 	msgReq, err := http.NewRequestWithContext(
 		ctx,
@@ -381,9 +382,10 @@ func (m *gomentoMemoryManager) searchSpaceForChunks(ctx context.Context, spaceId
 	return msgRes, nil
 }
 
-func (m *gomentoMemoryManager) searchSpaceForSkills(ctx context.Context, spaceId string, query string) ([]memorymanager.Skill, error) {
+func (m *gomentoMemoryManager) searchSpaceForSkills(ctx context.Context, spaceId string, query string, limit int) ([]memorymanager.Skill, error) {
 	params := url.Values{}
 	params.Add("q", query)
+	params.Add("limit", fmt.Sprintf("%d", limit))
 
 	skillReq, err := http.NewRequestWithContext(
 		ctx,
